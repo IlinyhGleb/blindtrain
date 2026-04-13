@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тренажер печати</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 800px;
+            width: 90%;
+        }
+        .profile-bar {
+            background: #e9ecef;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .logout-link { color: #dc3545; text-decoration: none; margin-left: 15px; }
+        .logout-link:hover { text-decoration: underline; }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+        .text-display {
+            font-size: 1.4em;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 8px;
+            user-select: none;
+        }
+        .correct { color: #28a745; }
+        .incorrect { color: #dc3545; background-color: #f8d7da; border-radius: 3px; }
+        .input-area {
+            width: 100%;
+            height: 100px;
+            font-size: 1.2em;
+            padding: 15px;
+            border: 2px solid #ced4da;
+            border-radius: 8px;
+            resize: none;
+            box-sizing: border-box;
+        }
+        .input-area:focus { outline: none; border-color: #007bff; }
+        .btn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Тренажер скорости печати</h2>
+
+    <div class="profile-bar">
+    <div>
+        <strong>{{ user.username }}</strong> | Уровень: {{ user.level }}
+        <a href="{{ url_for('stats') }}" style="margin-left: 15px; font-size: 0.9em; color: #007bff; text-decoration: none;">Статистика</a>
+    </div>
+    <div>
+        XP: {{ user.xp }} / {{ user.level * 100 }}
+        <a href="{{ url_for('logout') }}" class="logout-link">Выйти</a>
+    </div>
+    </div>
+
+    <div class="stats">
+        <div>Время: <span id="time">0</span> с</div>
+        <div>Скорость: <span id="wpm">0</span> зн/мин</div>
+        <div>Точность: <span id="accuracy">100</span>%</div>
+    </div>
+
+    <div class="text-display" id="textDisplay"></div>
+    <textarea class="input-area" id="inputArea" placeholder="Начните печатать..." autofocus></textarea>
+    <button class="btn" onclick="location.reload()">Новый текст</button>
+</div>
+
+<script>
+    const targetText = "{{ text }}";
+    const textDisplay = document.getElementById('textDisplay');
+    const inputArea = document.getElementById('inputArea');
+    const elements = {
+        time: document.getElementById('time'),
+        wpm: document.getElementById('wpm'),
+        accuracy: document.getElementById('accuracy')
+    };
+
+    let timeElapsed = 0;
+    let timer = null;
+    let isTyping = false;
+
+    targetText.split('').forEach(char => {
+        const span = document.createElement('span');
+        span.innerText = char;
+        textDisplay.appendChild(span);
+    });
+
+    inputArea.addEventListener('input', () => {
+        if (!isTyping) {
+            isTyping = true;
+            timer = setInterval(() => {
+                timeElapsed++;
+                elements.time.innerText = timeElapsed;
+                updateStats();
+            }, 1000);
+        }
+
+        const spans = textDisplay.querySelectorAll('span');
+        const values = inputArea.value.split('');
+        let isComplete = true;
+
+        spans.forEach((span, i) => {
+            const char = values[i];
+            if (!char) {
+                span.className = '';
+                isComplete = false;
+            } else if (char === span.innerText) {
+                span.className = 'correct';
+            } else {
+                span.className = 'incorrect';
+                isComplete = false;
+            }
+        });
+
+        if (isComplete && values.length === spans.length) {
+            clearInterval(timer);
+            inputArea.disabled = true;
+
+            fetch('/save_stats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    wpm: parseInt(elements.wpm.innerText),
+                    accuracy: parseInt(elements.accuracy.innerText)
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    let msg = `Текст набран.\nОпыт: +${data.gained_xp}`;
+                    if (data.leveled_up) msg += `\nНовый уровень: ${data.new_level}`;
+                    alert(msg);
+                    location.reload();
+                }
+            })
+            .catch(err => console.error(err));
+        }
+    });
+
+    function updateStats() {
+        const typed = inputArea.value.length;
+        const correct = document.querySelectorAll('.correct').length;
+
+        if (timeElapsed > 0) {
+            elements.wpm.innerText = Math.round((correct / timeElapsed) * 60);
+        }
+        if (typed > 0) {
+            elements.accuracy.innerText = Math.round((correct / typed) * 100);
+        }
+    }
+</script>
+
+</body>
+</html>

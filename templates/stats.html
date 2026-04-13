@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Моя статистика</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding-top: 50px; }
+        .stats-container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 600px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #eee; }
+        th { background-color: #f8f9fa; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #007bff; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="stats-container">
+        <a href="{{ url_for('index') }}" class="back-link">← Вернуться к тренажеру</a>
+        <h2>История тренировок</h2>
+
+        {% if stats %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Скорость (зн/мин)</th>
+                    <th>Точность</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in stats %}
+                <tr>
+                    <td>{{ s.date.strftime('%d.%m.%Y %H:%M') }}</td>
+                    <td>{{ s.wpm }}</td>
+                    <td>{{ s.accuracy }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <p>Вы еще не завершили ни одной тренировки.</p>
+        {% endif %}
+    </div>
+</body>
+</html>
