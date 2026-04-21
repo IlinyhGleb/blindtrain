@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blindtrain"
+version = "0.1.0"
+description = "Тренажер слепой печати с элементами геймификации"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "Flask>=3.0.0",
+    "Flask-SQLAlchemy>=3.1.1",
+    "Flask-Login>=0.6.3",
+    "Werkzeug>=3.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest_check",
+    "pytest-cov"
+]

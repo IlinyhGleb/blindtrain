@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Тренажер печати</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -14,64 +18,64 @@
             justify-content: center;
             height: 100vh;
             margin: 0;
+            transition: background-color 0.2s;
+            overflow: hidden;
         }
         .container {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            max-width: 800px;
-            width: 90%;
+            background: white; padding: 30px; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 900px; width: 90%;
         }
         .profile-bar {
-            background: #e9ecef;
-            padding: 12px 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
+            background: #e9ecef; padding: 12px 15px; border-radius: 8px;
+            margin-bottom: 20px; display: flex; justify-content: space-between;
         }
         .logout-link { color: #dc3545; text-decoration: none; margin-left: 15px; }
-        .logout-link:hover { text-decoration: underline; }
-        .stats {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            font-size: 1.1em;
-            font-weight: 600;
-        }
+        .stats { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 1.1em; font-weight: 600; }
+
+        /* Стили текста и курсора */
         .text-display {
-            font-size: 1.4em;
-            line-height: 1.6;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #e9ecef;
-            border-radius: 8px;
-            user-select: none;
+            font-size: 1.6em; line-height: 1.6; margin-bottom: 20px; padding: 15px;
+            background: #f8f9fa; border-radius: 8px; border: 2px solid #ced4da;
+            user-select: none; outline: none; white-space: pre-wrap;
         }
-        .correct { color: #28a745; }
-        .incorrect { color: #dc3545; background-color: #f8d7da; border-radius: 3px; }
-        .input-area {
-            width: 100%;
-            height: 100px;
-            font-size: 1.2em;
-            padding: 15px;
-            border: 2px solid #ced4da;
-            border-radius: 8px;
-            resize: none;
-            box-sizing: border-box;
+        .text-display span { padding: 0 2px; border-radius: 3px; }
+        .correct { color: #adb5bd; } /* Набранный текст тускнеет */
+        .incorrect { color: #dc3545; background-color: #f8d7da; }
+        .current-char { background-color: #007bff; color: white; box-shadow: 0 2px 4px rgba(0,123,255,0.3); }
+
+        /* Виртуальная клавиатура */
+        .keyboard {
+            display: flex; flex-direction: column; gap: 8px; align-items: center;
+            background: #e9ecef; padding: 20px; border-radius: 12px; margin-bottom: 15px;
         }
-        .input-area:focus { outline: none; border-color: #007bff; }
-        .btn {
-            margin-top: 15px;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
+        .row { display: flex; gap: 8px; }
+        .key {
+            min-width: 45px; height: 45px; background: white; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; color: #555; box-shadow: 0 2px 0 #ccc;
+            text-transform: uppercase; transition: all 0.1s;
         }
+        .key.space { width: 300px; }
+        .key.active { background: #d3d3d3; box-shadow: 0 0 0 #ccc; transform: translateY(2px); }
+        .key.target { background: #ffc107; color: #000; box-shadow: 0 2px 0 #d39e00; } /* Подсказка */
+
+        .btn { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
         .btn:hover { background-color: #0056b3; }
+
+        /* CV Styles */
+        #camera-wrapper {
+            position: fixed; bottom: 20px; right: 20px; width: 200px; height: 150px;
+            border: 4px solid #ced4da; border-radius: 12px; overflow: hidden;
+            background: #222; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: border-color 0.3s;
+        }
+        #cv-canvas { width: 100%; height: 100%; transform: scaleX(-1); }
+        #cv-status {
+            position: absolute; top: 5px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); color: white; padding: 3px 8px;
+            border-radius: 4px; font-size: 0.8em; white-space: nowrap;
+        }
+        @keyframes flashRed { 0%, 100% { background-color: #f4f7f6; } 50% { background-color: #f8d7da; } }
+        .cheat-alert { animation: flashRed 0.4s; }
     </style>
 </head>
 <body>
@@ -80,14 +84,14 @@
     <h2>Тренажер скорости печати</h2>
 
     <div class="profile-bar">
-    <div>
-        <strong>{{ user.username }}</strong> | Уровень: {{ user.level }}
-        <a href="{{ url_for('stats') }}" style="margin-left: 15px; font-size: 0.9em; color: #007bff; text-decoration: none;">Статистика</a>
-    </div>
-    <div>
-        XP: {{ user.xp }} / {{ user.level * 100 }}
-        <a href="{{ url_for('logout') }}" class="logout-link">Выйти</a>
-    </div>
+        <div>
+            <strong>{{ user.username }}</strong> | Уровень: {{ user.level }}
+            <a href="{{ url_for('stats') }}" style="margin-left: 15px; font-size: 0.9em; color: #007bff; text-decoration: none;">Статистика</a>
+        </div>
+        <div>
+            XP: {{ user.xp }} / {{ user.level * 100 }}
+            <a href="{{ url_for('logout') }}" class="logout-link">Выйти</a>
+        </div>
     </div>
 
     <div class="stats">
@@ -96,32 +100,99 @@
         <div>Точность: <span id="accuracy">100</span>%</div>
     </div>
 
-    <div class="text-display" id="textDisplay"></div>
-    <textarea class="input-area" id="inputArea" placeholder="Начните печатать..." autofocus></textarea>
-    <button class="btn" onclick="location.reload()">Новый текст</button>
+    <div class="text-display" id="textDisplay" tabindex="0"></div>
+
+    <div class="keyboard" id="keyboard"></div>
+
+    <button class="btn" onclick="location.reload()" style="width: 100%">Новый текст</button>
+</div>
+
+<div id="camera-wrapper">
+    <video id="video-feed" style="display: none;" playsinline></video>
+    <canvas id="cv-canvas"></canvas>
+    <div id="cv-status">Инициализация...</div>
 </div>
 
 <script>
     const targetText = "{{ text }}";
     const textDisplay = document.getElementById('textDisplay');
-    const inputArea = document.getElementById('inputArea');
-    const elements = {
-        time: document.getElementById('time'),
-        wpm: document.getElementById('wpm'),
-        accuracy: document.getElementById('accuracy')
-    };
+    const kbContainer = document.getElementById('keyboard');
+    const elements = { time: document.getElementById('time'), wpm: document.getElementById('wpm'), accuracy: document.getElementById('accuracy') };
 
+    // Состояние печати
+    let currentIndex = 0;
+    let totalTyped = 0;
+    let totalErrors = 0;
     let timeElapsed = 0;
     let timer = null;
     let isTyping = false;
+    let spans = [];
 
-    targetText.split('').forEach(char => {
+    // Раскладка виртуальной клавиатуры (русская)
+    const layout = [
+        ['й', 'ц', 'у', 'к', 'е', 'н', 'г', 'ш', 'щ', 'з', 'х', 'ъ'],
+        ['ф', 'ы', 'в', 'а', 'п', 'р', 'о', 'л', 'д', 'ж', 'э'],
+        ['я', 'ч', 'с', 'м', 'и', 'т', 'ь', 'б', 'ю', '.', ','],
+        [' '] // Пробел
+    ];
+    const keyElements = {}; // Для быстрого поиска DOM-элементов клавиш
+
+    // 1. Инициализация текста
+    targetText.split('').forEach((char, index) => {
         const span = document.createElement('span');
         span.innerText = char;
+        if (index === 0) span.classList.add('current-char'); // Курсор на первой букве
         textDisplay.appendChild(span);
+        spans.push(span);
     });
 
-    inputArea.addEventListener('input', () => {
+    // 2. Отрисовка клавиатуры
+    layout.forEach(row => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'row';
+        row.forEach(key => {
+            const keyDiv = document.createElement('div');
+            keyDiv.className = `key ${key === ' ' ? 'space' : ''}`;
+            keyDiv.innerText = key === ' ' ? 'Пробел' : key;
+            rowDiv.appendChild(keyDiv);
+            keyElements[key] = keyDiv; // Сохраняем ссылку по символу
+        });
+        kbContainer.appendChild(rowDiv);
+    });
+
+    function updateKeyboardHint() {
+        // Убираем подсветку со всех
+        Object.values(keyElements).forEach(el => el.classList.remove('target'));
+
+        if (currentIndex < targetText.length) {
+            let nextChar = targetText[currentIndex].toLowerCase();
+            if (nextChar === '-' || nextChar === '—') nextChar = '-'; // Упрощение для тире
+            if (keyElements[nextChar]) {
+                keyElements[nextChar].classList.add('target');
+            }
+        }
+    }
+    updateKeyboardHint(); // Первоначальная подсказка
+
+    // 3. Обработка ввода (перехват клавиш)
+    document.addEventListener('keydown', (e) => {
+        // Игнорируем спецклавиши (Shift, Alt, F1 и тд)
+        if (e.key.length !== 1) return;
+
+        // Фокус всегда на странице, предотвращаем скролл пробелом
+        if (e.key === ' ') e.preventDefault();
+
+        // Проверка компьютерного зрения (читерство)
+        if (!isHandsValid && cvReady) {
+            document.body.classList.remove('cheat-alert');
+            void document.body.offsetWidth;
+            document.body.classList.add('cheat-alert');
+            return;
+        }
+
+        if (currentIndex >= targetText.length) return; // Текст окончен
+
+        // Старт таймера
         if (!isTyping) {
             isTyping = true;
             timer = setInterval(() => {
@@ -131,59 +202,116 @@
             }, 1000);
         }
 
-        const spans = textDisplay.querySelectorAll('span');
-        const values = inputArea.value.split('');
-        let isComplete = true;
+        totalTyped++;
+        const expectedChar = targetText[currentIndex];
+        const currentSpan = spans[currentIndex];
 
-        spans.forEach((span, i) => {
-            const char = values[i];
-            if (!char) {
-                span.className = '';
-                isComplete = false;
-            } else if (char === span.innerText) {
-                span.className = 'correct';
-            } else {
-                span.className = 'incorrect';
-                isComplete = false;
-            }
-        });
-
-        if (isComplete && values.length === spans.length) {
-            clearInterval(timer);
-            inputArea.disabled = true;
-
-            fetch('/save_stats', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    wpm: parseInt(elements.wpm.innerText),
-                    accuracy: parseInt(elements.accuracy.innerText)
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    let msg = `Текст набран.\nОпыт: +${data.gained_xp}`;
-                    if (data.leveled_up) msg += `\nНовый уровень: ${data.new_level}`;
-                    alert(msg);
-                    location.reload();
-                }
-            })
-            .catch(err => console.error(err));
+        // Визуализация нажатия на вирт. клавиатуре
+        const pressedKey = e.key.toLowerCase();
+        if (keyElements[pressedKey]) {
+            keyElements[pressedKey].classList.add('active');
+            setTimeout(() => keyElements[pressedKey].classList.remove('active'), 150);
         }
+
+        // Проверка правильности
+        if (e.key === expectedChar) {
+            currentSpan.classList.remove('current-char', 'incorrect');
+            currentSpan.classList.add('correct');
+            currentIndex++;
+
+            // Двигаем курсор
+            if (currentIndex < targetText.length) {
+                spans[currentIndex].classList.add('current-char');
+            } else {
+                finishTyping(); // Конец
+            }
+            updateKeyboardHint();
+        } else {
+            currentSpan.classList.add('incorrect');
+            totalErrors++;
+        }
+
+        updateStats(); // Обновляем точность мгновенно
     });
 
     function updateStats() {
-        const typed = inputArea.value.length;
-        const correct = document.querySelectorAll('.correct').length;
-
         if (timeElapsed > 0) {
-            elements.wpm.innerText = Math.round((correct / timeElapsed) * 60);
+            elements.wpm.innerText = Math.round((currentIndex / timeElapsed) * 60);
         }
-        if (typed > 0) {
-            elements.accuracy.innerText = Math.round((correct / typed) * 100);
+        if (totalTyped > 0) {
+            // Динамическая точность (падает при каждой ошибке)
+            const currentAccuracy = Math.max(0, Math.floor(((totalTyped - totalErrors) / totalTyped) * 100));
+            elements.accuracy.innerText = currentAccuracy;
         }
     }
+
+    function finishTyping() {
+        clearInterval(timer);
+
+        fetch('/save_stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                wpm: parseInt(elements.wpm.innerText),
+                accuracy: parseInt(elements.accuracy.innerText)
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                let msg = `Текст пройден!\nОпыт: +${data.gained_xp}`;
+                if (data.leveled_up) msg += `\nНовый уровень: ${data.new_level}`;
+                alert(msg);
+                location.reload();
+            }
+        });
+    }
+
+    // 4. Логика Компьютерного зрения (оставлена без изменений)
+    const videoElement = document.getElementById('video-feed');
+    const canvasElement = document.getElementById('cv-canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const cvStatus = document.getElementById('cv-status');
+    const cameraWrapper = document.getElementById('camera-wrapper');
+
+    let isHandsValid = false;
+    let cvReady = false;
+
+    canvasElement.width = 200;
+    canvasElement.height = 150;
+
+    function onCvResults(results) {
+        if (!cvReady) { cvReady = true; cvStatus.innerText = "Ожидание рук"; }
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+        let handsCount = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+        if (handsCount > 0) {
+            for (const landmarks of results.multiHandLandmarks) {
+                for(let i = 0; i < landmarks.length; i++) {
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(landmarks[i].x * canvasElement.width, landmarks[i].y * canvasElement.height, 2, 0, 2 * Math.PI);
+                    canvasCtx.fillStyle = '#007bff'; canvasCtx.fill();
+                }
+            }
+        }
+
+        if (handsCount === 2) {
+            isHandsValid = true; cvStatus.innerText = "Обе руки в кадре";
+            cvStatus.style.color = "#28a745"; cameraWrapper.style.borderColor = "#28a745";
+        } else {
+            isHandsValid = false; cvStatus.innerText = "Верните руки!";
+            cvStatus.style.color = "#dc3545"; cameraWrapper.style.borderColor = "#dc3545";
+        }
+        canvasCtx.restore();
+    }
+
+    const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+    hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+    hands.onResults(onCvResults);
+    const camera = new Camera(videoElement, { onFrame: async () => { await hands.send({image: videoElement}); }, width: 320, height: 240 });
+    camera.start();
 </script>
 
 </body>
