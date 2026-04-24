@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Достижения</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 30px 20px; margin: 0; color: #333; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 720px; }
+        .back-link { display: inline-block; margin-bottom: 10px; color: #007bff; text-decoration: none; font-size: 0.95em; }
+        h2 { margin: 0 0 4px; }
+        .summary {
+            color: #6c757d; margin-bottom: 18px; font-size: 0.95em;
+            display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+        }
+        .progress-bar {
+            flex: 1; min-width: 120px; height: 6px; background: #e9ecef;
+            border-radius: 3px; overflow: hidden; max-width: 300px;
+        }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, #007bff 0%, #4ea5ff 100%);
+            border-radius: 3px; transition: width 0.3s;
+        }
+
+        .category-title {
+            font-size: 0.85em; font-weight: 600; color: #6c757d;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            margin: 22px 0 10px; padding-bottom: 4px; border-bottom: 1px solid #e9ecef;
+        }
+        .category-title:first-of-type { margin-top: 8px; }
+
+        .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+        .ach-card {
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 12px 14px; border-radius: 8px;
+            border: 1.5px solid #e9ecef; background: #fff;
+            transition: border-color 0.15s;
+        }
+        .ach-card.earned { border-color: #b5dcff; background: linear-gradient(90deg, #f0f6ff 0%, #fff 100%); }
+        .ach-card.locked { opacity: 0.55; filter: grayscale(1); }
+
+        .ach-icon { font-size: 2em; line-height: 1; flex-shrink: 0; }
+        .ach-body { flex: 1; min-width: 0; }
+        .ach-title { font-weight: 600; margin-bottom: 2px; }
+        .ach-desc  { font-size: 0.85em; color: #6c757d; line-height: 1.35; }
+        .ach-date  { font-size: 0.75em; color: #adb5bd; margin-top: 4px; }
+
+        @media (max-width: 520px) {
+            .container { padding: 22px 18px; }
+            .ach-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('index') }}" class="back-link">← Вернуться к тренажёру</a>
+        <h2>Достижения</h2>
+
+        <div class="summary">
+            <span><strong>{{ earned_count }}</strong> из {{ total }}</span>
+            <div class="progress-bar" aria-hidden="true">
+                <div class="progress-fill" style="width: {{ (earned_count * 100 / total) | round(0, 'floor') }}%"></div>
+            </div>
+        </div>
+
+        {% set categories = {
+            'progress': 'Прогресс по урокам',
+            'streak':   'Серии',
+            'speed':    'Скорость',
+            'precision':'Точность и упорство',
+        } %}
+        {% for cat_code, cat_title in categories.items() %}
+            {% set cat_items = items | selectattr('category', 'equalto', cat_code) | list %}
+            {% if cat_items %}
+                <div class="category-title">{{ cat_title }}</div>
+                <div class="ach-grid">
+                    {% for it in cat_items %}
+                    <div class="ach-card {{ 'earned' if it.earned else 'locked' }}"
+                         title="{{ it.description }}">
+                        <div class="ach-icon">{{ it.icon }}</div>
+                        <div class="ach-body">
+                            <div class="ach-title">{{ it.title }}</div>
+                            <div class="ach-desc">{{ it.description }}</div>
+                            {% if it.earned and it.earned_at %}
+                            <div class="ach-date">получено {{ it.earned_at.strftime('%d.%m.%Y') }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+</body>
+</html>

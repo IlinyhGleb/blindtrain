@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Уроки</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #f4f7f6;
+            display: flex; justify-content: center;
+            padding: 30px 15px;
+            margin: 0;
+        }
+        .lessons-container {
+            background: white; padding: 30px; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 720px; width: 100%;
+        }
+        .top-bar { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .top-bar a { color: #007bff; text-decoration: none; }
+        h2 { margin-top: 0; }
+
+        .lesson-card {
+            border: 2px solid #e9ecef; border-radius: 10px;
+            padding: 16px 20px; margin-bottom: 14px;
+            display: flex; align-items: center; gap: 16px;
+            transition: border-color 0.15s, background 0.15s;
+        }
+        .lesson-card.completed { border-color: #28a745; background: #f0f9f3; }
+        .lesson-card.current   { border-color: #007bff; background: #f0f6ff; box-shadow: 0 2px 8px rgba(0,123,255,0.12); }
+        .lesson-card.locked    { opacity: 0.6; background: #f8f9fa; }
+
+        .lesson-icon {
+            width: 48px; height: 48px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5em; font-weight: bold; color: white;
+            background: #adb5bd; flex-shrink: 0;
+        }
+        .lesson-card.completed .lesson-icon { background: #28a745; }
+        .lesson-card.current .lesson-icon   { background: #007bff; }
+
+        .lesson-info { flex: 1; min-width: 0; }
+        .lesson-title { font-weight: 600; font-size: 1.05em; margin-bottom: 4px; }
+        .lesson-desc { color: #6c757d; font-size: 0.9em; margin-bottom: 6px; }
+        .lesson-meta { font-size: 0.85em; color: #868e96; }
+        .lesson-lock-reason { color: #dc3545; font-size: 0.85em; margin-top: 4px; }
+
+        .lesson-action {
+            padding: 8px 16px; background-color: #007bff; color: white;
+            border-radius: 6px; text-decoration: none; white-space: nowrap;
+            font-size: 0.9em; font-weight: 500;
+        }
+        .lesson-action:hover { background-color: #0056b3; }
+        .lesson-action.secondary { background-color: #6c757d; }
+        .lesson-action.disabled { background-color: #ced4da; pointer-events: none; }
+
+        .progress-bar {
+            height: 6px; background: #e9ecef; border-radius: 3px;
+            margin-top: 6px; overflow: hidden;
+        }
+        .progress-bar > div { height: 100%; background: #007bff; transition: width 0.3s; }
+        .lesson-card.completed .progress-bar > div { background: #28a745; }
+
+        .flash-msg {
+            background: #fff3cd; color: #856404; padding: 10px 14px;
+            border-radius: 6px; margin-bottom: 16px; font-size: 0.9em;
+        }
+
+        @media (max-width: 600px) {
+            .lesson-card { flex-direction: column; align-items: stretch; }
+            .lesson-action { text-align: center; }
+        }
+    </style>
+</head>
+<body>
+<div class="lessons-container">
+    <div class="top-bar">
+        <a href="{{ url_for('index') }}">← К тренажёру</a>
+        <a href="{{ url_for('stats') }}">Моя статистика →</a>
+    </div>
+
+    <h2>Уроки слепой печати</h2>
+    <p style="color: #6c757d;">Проходите уроки по порядку — так быстрее поставите руки правильно. Каждый урок состоит из нескольких коротких упражнений.</p>
+
+    {% with messages = get_flashed_messages() %}
+        {% for m in messages %}
+            <div class="flash-msg">{{ m }}</div>
+        {% endfor %}
+    {% endwith %}
+
+    {% for item in items %}
+        {% set lesson = item.lesson %}
+        {% set status_class = 'completed' if item.is_completed else ('locked' if not item.accessible else 'current') %}
+        <div class="lesson-card {{ status_class }}">
+            <div class="lesson-icon">
+                {% if item.is_completed %}✓{% elif not item.accessible %}🔒{% else %}{{ lesson.id }}{% endif %}
+            </div>
+            <div class="lesson-info">
+                <div class="lesson-title">{{ lesson.title }}</div>
+                <div class="lesson-desc">{{ lesson.description }}</div>
+                {% if not lesson.is_free_practice %}
+                    <div class="lesson-meta">
+                        Упражнений: {{ item.completed_exercises }} / {{ item.exercises_total }}
+                        {% if item.best_accuracy %} · Лучшая точность: {{ item.best_accuracy }}%{% endif %}
+                    </div>
+                    <div class="progress-bar">
+                        <div style="width: {{ (100 * item.completed_exercises / item.exercises_total) | round }}%"></div>
+                    </div>
+                {% else %}
+                    <div class="lesson-meta">Режим свободной практики — настоящие тексты, WPM, heatmap.</div>
+                {% endif %}
+                {% if not item.accessible and item.lock_reason %}
+                    <div class="lesson-lock-reason">🔒 {{ item.lock_reason }}</div>
+                {% endif %}
+            </div>
+            {% if item.accessible %}
+                <a href="{{ url_for('start_lesson', lesson_id=lesson.id) }}" class="lesson-action{% if item.is_completed %} secondary{% endif %}">
+                    {% if item.is_completed %}Повторить{% else %}Начать{% endif %}
+                </a>
+            {% else %}
+                <span class="lesson-action disabled">Закрыто</span>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+</body>
+</html>

@@ -4,74 +4,638 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Тренажер печати</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=PT+Mono&family=Roboto+Mono:wght@400;600&family=Source+Code+Pro:wght@400;600&display=swap&subset=cyrillic,cyrillic-ext,latin,latin-ext">
+
     <style>
+        :root {
+            
+            --finger-pinky:  #a8e6a3;   
+            --finger-ring:   #fff2a8;   
+            --finger-middle: #ffc999;   
+            --finger-index:  #ffb3c6;   
+            --finger-thumb:  #b5dcff;   
+            --key-service:   #e9ecef;   
+
+            --bg-page:        #f4f7f6;  
+            --bg-surface:     #ffffff;  
+            --bg-profile-bar: #e9ecef;  
+            --text-primary:   #333333;
+            --text-secondary: #6c757d;
+            --border-subtle:  #ced4da;
+
+            --typing-bg:        #f8f9fa;
+            --typing-fg:        #222222;
+            --typing-font-size: 1.6em;
+        }
+
+        body.theme-dark {
+            --bg-page:        #1a1d23;
+            --bg-surface:     #24272e;
+            --bg-profile-bar: #2e323a;
+            --text-primary:   #e4e6eb;
+            --text-secondary: #9aa0a6;
+            --border-subtle:  #3a3f47;
+            --typing-bg:      #2a2e35;
+            --typing-fg:      #e4e6eb;
+
+            --finger-pinky:  #6fa86b;
+            --finger-ring:   #c0b260;
+            --finger-middle: #c48d60;
+            --finger-index:  #c07b8a;
+            --finger-thumb:  #7aa3c0;
+            --key-service:   #3a3f47;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
-            color: #333;
+            background-color: var(--bg-page);
+            color: var(--text-primary);
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            transition: background-color 0.2s, color 0.2s;
         }
         .container {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            max-width: 800px;
-            width: 90%;
+            background: var(--bg-surface); padding: 30px; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 980px; width: 100%;
+            transition: background-color 0.2s;
         }
         .profile-bar {
-            background: #e9ecef;
-            padding: 12px 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
+            background: var(--bg-profile-bar); padding: 12px 15px; border-radius: 8px;
+            margin-bottom: 20px; display: flex; justify-content: space-between;
+            transition: background-color 0.2s;
         }
         .logout-link { color: #dc3545; text-decoration: none; margin-left: 15px; }
-        .logout-link:hover { text-decoration: underline; }
-        .stats {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            font-size: 1.1em;
-            font-weight: 600;
+
+        .streak-pill {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #fff4e0; color: #b8860b;
+            padding: 2px 10px; border-radius: 12px;
+            font-size: 0.9em; font-weight: 600;
+            margin-left: 8px; cursor: help;
         }
+        .streak-pill-empty { background: #e9ecef; color: #6c757d; filter: grayscale(1); }
+        @keyframes streakPulse {
+            0%   { transform: scale(1); }
+            50%  { transform: scale(1.15); box-shadow: 0 0 8px rgba(255, 150, 50, 0.5); }
+            100% { transform: scale(1); }
+        }
+        .streak-pill.is-updated { animation: streakPulse 0.6s ease-out; }
+        .stats { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 1.1em; font-weight: 600; }
+
+        .lesson-banner {
+            background: linear-gradient(90deg, #e7f3ff 0%, #f0f6ff 100%);
+            border-left: 4px solid #007bff; border-radius: 6px;
+            padding: 10px 14px; margin-bottom: 14px; font-size: 0.95em;
+        }
+        .lesson-banner-main { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .lesson-banner-progress { color: #6c757d; font-size: 0.85em; font-weight: 500; }
+        .lesson-banner-desc { color: #555; font-size: 0.85em; margin-top: 2px; }
+
+        .typing-area { display: flex; gap: 20px; align-items: stretch; margin-bottom: 20px; }
+
         .text-display {
-            font-size: 1.4em;
-            line-height: 1.6;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #e9ecef;
-            border-radius: 8px;
-            user-select: none;
+            flex: 1;
+            font-size: var(--typing-font-size); line-height: 1.6; padding: 15px;
+            background: var(--typing-bg); color: var(--typing-fg);
+            
+            font-family: var(--typing-font-family, Consolas, Monaco, "Courier New", monospace);
+            border-radius: 8px; border: 2px solid var(--border-subtle);
+            user-select: none; outline: none; white-space: pre-wrap;
+            transition: background-color 0.2s, color 0.2s, font-size 0.15s;
         }
-        .correct { color: #28a745; }
-        .incorrect { color: #dc3545; background-color: #f8d7da; border-radius: 3px; }
-        .input-area {
-            width: 100%;
-            height: 100px;
-            font-size: 1.2em;
-            padding: 15px;
-            border: 2px solid #ced4da;
-            border-radius: 8px;
-            resize: none;
-            box-sizing: border-box;
+        .text-display span { padding: 0 2px; border-radius: 3px; transition: background-color 0.3s ease, color 0.3s ease; }
+
+        body.mode-fade .correct { color: var(--text-secondary); }
+
+        body.mode-solid .correct {
+            color: #2e7d32;
+            background-color: #d4edda;
         }
-        .input-area:focus { outline: none; border-color: #007bff; }
-        .btn {
-            margin-top: 15px;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
+        body.theme-dark.mode-solid .correct {
+            color: #9fd4a3;
+            background-color: rgba(46, 125, 50, 0.3);
         }
+
+        body.mode-flash .correct { color: var(--text-secondary); }
+        body.mode-flash .just-correct {
+            color: #2e7d32 !important;
+            background-color: #c3e6cb !important;
+            transition: background-color 0s, color 0s;
+        }
+        body.theme-dark.mode-flash .just-correct {
+            color: #9fd4a3 !important;
+            background-color: rgba(46, 125, 50, 0.4) !important;
+        }
+        body.mode-flash .correct:not(.just-correct) {
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
+        .incorrect { color: #dc3545; background-color: #f8d7da; }
+        .current-char { background-color: #007bff; color: white; box-shadow: 0 2px 4px rgba(0,123,255,0.3); }
+
+        .hand-hint {
+            width: 220px; background: var(--typing-bg); border: 2px solid var(--border-subtle);
+            border-radius: 8px; padding: 10px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 8px;
+            transition: background-color 0.2s;
+        }
+        .hand-hint svg { width: 100%; height: auto; }
+        .hand-hint .hint-label {
+            font-size: 0.85em; color: var(--text-secondary); text-align: center;
+            min-height: 2.4em; line-height: 1.2;
+        }
+        .hand-hint .hint-label strong { color: #007bff; display: block; font-size: 1.1em; }
+        
+        body.hide-hand-hint .hand-hint { display: none; }
+
+        .finger-shape { fill: #eee; stroke: #999; stroke-width: 1.5; transition: fill 0.15s, stroke 0.15s; }
+        .finger-shape.active { stroke: #007bff; stroke-width: 3; }
+        .finger-shape.active.pinky  { fill: var(--finger-pinky); }
+        .finger-shape.active.ring   { fill: var(--finger-ring); }
+        .finger-shape.active.middle { fill: var(--finger-middle); }
+        .finger-shape.active.index  { fill: var(--finger-index); }
+        .finger-shape.active.thumb  { fill: var(--finger-thumb); }
+
+        .keyboard {
+            display: flex; flex-direction: column; gap: 6px; align-items: center;
+            background: var(--bg-profile-bar); padding: 15px; border-radius: 12px; margin-bottom: 15px;
+            transition: background-color 0.2s;
+        }
+        .row { display: flex; gap: 6px; }
+        .key {
+            min-width: 42px; height: 42px; background: var(--key-service); border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600; color: #333; box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+            text-transform: uppercase; transition: all 0.1s;
+            font-size: 0.95em; padding: 0 4px;
+        }
+        
+        .key.finger-pinky  { background: var(--finger-pinky); }
+        .key.finger-ring   { background: var(--finger-ring); }
+        .key.finger-middle { background: var(--finger-middle); }
+        .key.finger-index  { background: var(--finger-index); }
+        .key.finger-thumb  { background: var(--finger-thumb); }
+
+        .key.wide    { min-width: 60px; font-size: 0.75em; }
+        .key.space   { width: 320px; }
+        .key.active  { transform: translateY(2px); box-shadow: 0 0 0 rgba(0,0,0,0.15); filter: brightness(0.9); }
+        .key.target  { outline: 3px solid #007bff; outline-offset: -2px; z-index: 1; }
+        .key.target-shift { outline: 3px dashed #6c757d; outline-offset: -2px; }
+
+        .key.has-heat {
+            position: relative;
+            box-shadow:
+                0 2px 0 rgba(0,0,0,0.15),
+                inset 0 0 0 2px rgba(220, 53, 69, calc(var(--heat, 0) * 0.9));
+        }
+        .key.has-heat::after {
+            content: '';
+            position: absolute;
+            top: 3px; right: 3px;
+            width: 6px; height: 6px; border-radius: 50%;
+            background: rgb(220, 53, 69);
+            opacity: var(--heat, 0);
+            pointer-events: none;
+        }
+
+        .btn { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; }
         .btn:hover { background-color: #0056b3; }
+
+        .settings-bar {
+            display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px;
+            background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px;
+            padding: 8px 14px; margin-bottom: 12px; font-size: 0.9em; color: #555;
+        }
+        .settings-bar .settings-label { font-weight: 600; color: #333; }
+        .settings-bar label.opt {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 8px; border-radius: 4px; cursor: pointer;
+            user-select: none; transition: background 0.1s;
+        }
+        .settings-bar label.opt:hover { background: #e9ecef; }
+        .settings-bar input[type="radio"] { margin: 0; cursor: pointer; }
+
+        #camera-wrapper {
+            position: fixed; bottom: 20px; right: 20px; width: 200px; height: 150px;
+            border: 4px solid #ced4da; border-radius: 12px; overflow: hidden;
+            background: #222; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: border-color 0.3s;
+        }
+        #cv-canvas { width: 100%; height: 100%; transform: scaleX(-1); }
+        #cv-status {
+            position: absolute; top: 5px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); color: white; padding: 3px 8px;
+            border-radius: 4px; font-size: 0.8em; white-space: nowrap;
+        }
+        @keyframes flashRed { 0%, 100% { background-color: var(--bg-page); } 50% { background-color: #f8d7da; } }
+        body.theme-dark.cheat-alert { animation: flashRedDark 0.4s; }
+        @keyframes flashRedDark { 0%, 100% { background-color: var(--bg-page); } 50% { background-color: #5a2a2f; } }
+        body:not(.theme-dark).cheat-alert { animation: flashRed 0.4s; }
+
+        .cv-fallback {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 6px;
+            background: #2a2d35; color: #adb5bd; font-size: 0.85em;
+            z-index: 2;
+        }
+        .cv-fallback-icon { font-size: 2em; opacity: 0.6; }
+        .cv-fallback-text { text-align: center; padding: 0 12px; }
+
+        .camera-banner {
+            background: #fff3cd; border: 1px solid #ffe8a1; color: #7a5e1f;
+            border-radius: 8px; padding: 10px 14px; margin-bottom: 16px;
+            font-size: 0.9em;
+        }
+        body.theme-dark .camera-banner {
+            background: rgba(212, 160, 23, 0.15); border-color: rgba(212, 160, 23, 0.4);
+            color: #e4c882;
+        }
+        .camera-banner-main {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        }
+        .camera-banner-icon { font-size: 1.4em; line-height: 1; }
+        .camera-banner-text { flex: 1; min-width: 200px; }
+        .camera-banner-sub { font-size: 0.85em; margin-top: 2px; opacity: 0.9; }
+        .camera-banner-help {
+            background: transparent; border: 1px solid currentColor; color: inherit;
+            padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.85em;
+        }
+        .camera-banner-help:hover { background: rgba(0,0,0,0.05); }
+        body.theme-dark .camera-banner-help:hover { background: rgba(255,255,255,0.08); }
+        .camera-banner-close {
+            background: none; border: none; color: inherit; cursor: pointer;
+            font-size: 1.3em; line-height: 1; padding: 0 4px; opacity: 0.7;
+        }
+        .camera-banner-close:hover { opacity: 1; }
+        .camera-banner-help-content {
+            margin-top: 8px; padding-top: 8px; border-top: 1px dashed currentColor;
+            font-size: 0.85em; line-height: 1.4;
+        }
+
+        @media (max-width: 820px) {
+            .typing-area { flex-direction: column; }
+            .hand-hint { width: auto; }
+        }
+
+        .result-overlay {
+            position: fixed; inset: 0; background: rgba(20, 25, 35, 0.55);
+            display: none; align-items: center; justify-content: center;
+            z-index: 1000; padding: 20px; box-sizing: border-box;
+            animation: resultFadeIn 0.2s ease-out;
+        }
+        .result-overlay.is-visible { display: flex; }
+        @keyframes resultFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .result-card {
+            background: white; border-radius: 12px; padding: 28px 32px;
+            max-width: 520px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+            animation: resultSlideUp 0.25s ease-out;
+        }
+        @keyframes resultSlideUp {
+            from { transform: translateY(12px); opacity: 0; }
+            to   { transform: translateY(0);    opacity: 1; }
+        }
+
+        .result-status {
+            font-size: 1.4em; font-weight: 700; margin: 0 0 4px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .result-status-icon { font-size: 1.4em; line-height: 1; }
+        .result-subtitle { color: #6c757d; font-size: 0.95em; margin: 0 0 20px; }
+
+        .result-status.is-success { color: #1e7e34; }
+        .result-status.is-warn    { color: #b8860b; }
+        .result-status.is-neutral { color: #2a4365; }
+
+        .result-metrics {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 10px; margin-bottom: 18px;
+        }
+        .result-metric {
+            background: #f4f7f6; border-radius: 8px; padding: 12px 8px; text-align: center;
+        }
+        .result-metric-value { font-size: 1.5em; font-weight: 700; color: #2a4365; line-height: 1.1; }
+        .result-metric-label { font-size: 0.78em; color: #6c757d; margin-top: 4px; }
+
+        .result-xp {
+            background: linear-gradient(90deg, #e7f3ff 0%, #f0f6ff 100%);
+            border-left: 4px solid #007bff; border-radius: 6px;
+            padding: 10px 14px; margin-bottom: 14px;
+            display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+        }
+        .result-xp-label { font-weight: 600; color: #2a4365; }
+        .result-xp-value { font-weight: 700; color: #007bff; font-size: 1.1em; }
+        .result-levelup {
+            background: #fff3cd; border-left-color: #ffc107;
+        }
+        .result-levelup .result-xp-value { color: #b8860b; }
+
+        .result-streak {
+            background: #fff4e0; border-left: 4px solid #ff8c42;
+            border-radius: 6px; padding: 12px 14px; margin-bottom: 14px;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .result-streak-icon { font-size: 1.8em; line-height: 1; }
+        .result-streak-title { font-weight: 700; color: #a0522d; font-size: 1.05em; }
+        .result-streak-sub   { color: #8a5a2a; font-size: 0.88em; margin-top: 2px; }
+        .result-streak.is-record {
+            background: linear-gradient(90deg, #fff4e0 0%, #ffe0b3 100%);
+            border-left-color: #ff6b1a;
+        }
+        .result-streak.is-record .result-streak-title { color: #7a2e0c; }
+
+        .result-achievements { margin-bottom: 14px; }
+        .result-achievements-title {
+            font-size: 0.85em; font-weight: 600; color: #555; margin-bottom: 6px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .result-ach-card {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 12px; border-radius: 6px; margin-bottom: 6px;
+            background: linear-gradient(90deg, #fff8dc 0%, #fffaeb 100%);
+            border-left: 4px solid #d4a017;
+        }
+        .result-ach-card:last-child { margin-bottom: 0; }
+        .result-ach-card .result-ach-icon { font-size: 1.8em; line-height: 1; }
+        .result-ach-card .result-ach-body { flex: 1; min-width: 0; }
+        .result-ach-card .result-ach-title { font-weight: 700; color: #5c4a0f; }
+        .result-ach-card .result-ach-desc  { font-size: 0.85em; color: #7a5e1f; margin-top: 2px; }
+
+        .toast-container {
+            position: fixed; top: 20px; right: 20px;
+            display: flex; flex-direction: column; gap: 10px;
+            z-index: 1100; max-width: 320px;
+            pointer-events: none;
+        }
+        .toast {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 14px; border-radius: 8px;
+            background: linear-gradient(90deg, #fff8dc 0%, #fffaeb 100%);
+            border-left: 4px solid #d4a017;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+            pointer-events: auto;
+            animation: toastIn 0.3s ease-out, toastOut 0.3s ease-in 4.7s forwards;
+        }
+        .toast-icon { font-size: 1.6em; line-height: 1; }
+        .toast-body { flex: 1; min-width: 0; }
+        .toast-label { font-size: 0.7em; color: #8a6d1f; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        .toast-title { font-weight: 700; color: #5c4a0f; font-size: 0.95em; }
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(24px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateX(0); }
+            to   { opacity: 0; transform: translateX(24px); }
+        }
+
+        .result-weakkeys { margin-bottom: 18px; }
+        .result-weakkeys-title {
+            font-size: 0.85em; color: #6c757d; margin-bottom: 6px; font-weight: 600;
+        }
+        .result-weakkeys-list { display: flex; gap: 8px; flex-wrap: wrap; }
+        .result-weakkey {
+            background: #fff; border: 1px solid #f5c2c7; color: #842029;
+            border-radius: 6px; padding: 4px 10px; font-family: 'Consolas', monospace;
+            font-size: 0.9em; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .result-weakkey-count { color: #6c757d; font-size: 0.85em; }
+
+        .result-actions { display: flex; gap: 10px; }
+        .result-btn {
+            flex: 1; padding: 11px 16px; border: none; border-radius: 8px;
+            font-size: 1em; font-weight: 600; cursor: pointer; transition: background-color 0.15s;
+        }
+        .result-btn-primary { background: #007bff; color: white; }
+        .result-btn-primary:hover { background: #0069d9; }
+        .result-btn-secondary { background: #e9ecef; color: #333; }
+        .result-btn-secondary:hover { background: #dee2e6; }
+
+        @media (max-width: 520px) {
+            .result-card { padding: 22px 20px; }
+            .result-metrics { grid-template-columns: repeat(2, 1fr); }
+            .result-actions { flex-direction: column; }
+        }
+
+        .settings-btn {
+            background: none; border: none; cursor: pointer;
+            font-size: 1.1em; padding: 2px 6px; margin-left: 10px;
+            color: var(--text-secondary); border-radius: 4px;
+        }
+        .settings-btn:hover { background: rgba(0,0,0,0.08); color: var(--text-primary); }
+        body.theme-dark .settings-btn:hover { background: rgba(255,255,255,0.08); }
+
+        .settings-overlay {
+            position: fixed; inset: 0; background: rgba(20, 25, 35, 0.55);
+            display: none; align-items: center; justify-content: center;
+            z-index: 1000; padding: 20px; box-sizing: border-box;
+            animation: resultFadeIn 0.2s ease-out;
+        }
+        .settings-overlay.is-visible { display: flex; }
+        .settings-card {
+            background: var(--bg-surface); color: var(--text-primary);
+            border-radius: 12px; padding: 24px 28px;
+            max-width: 560px; width: 100%; max-height: 85vh; overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: resultSlideUp 0.25s ease-out;
+        }
+        .settings-title {
+            font-size: 1.3em; font-weight: 700; margin: 0 0 16px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .settings-close {
+            background: none; border: none; font-size: 1.5em; cursor: pointer;
+            color: var(--text-secondary); line-height: 1; padding: 0 4px;
+        }
+        .settings-close:hover { color: var(--text-primary); }
+
+        .settings-group {
+            border-top: 1px solid var(--border-subtle);
+            padding: 12px 0; display: flex; flex-direction: column; gap: 6px;
+        }
+        .settings-group:first-of-type { border-top: none; }
+        .settings-group-title {
+            font-size: 0.9em; font-weight: 600; color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .settings-group-hint {
+            font-size: 0.8em; color: var(--text-secondary); margin-bottom: 4px;
+        }
+
+        .settings-options { display: flex; flex-wrap: wrap; gap: 6px; }
+        .settings-opt {
+            padding: 6px 12px; border: 1.5px solid var(--border-subtle);
+            background: transparent; color: var(--text-primary);
+            border-radius: 6px; cursor: pointer; font-size: 0.9em;
+            transition: all 0.1s;
+        }
+        .settings-opt:hover { border-color: #007bff; }
+        .settings-opt.is-active {
+            background: #007bff; color: white; border-color: #007bff;
+        }
+        
+        .settings-opt.is-font-preview {
+            font-size: 1em; letter-spacing: 0.02em;
+        }
+
+        .settings-opt.is-locked,
+        .settings-swatch.is-locked {
+            cursor: not-allowed; opacity: 0.55; filter: grayscale(0.8);
+            position: relative;
+        }
+        .settings-opt.is-locked:hover,
+        .settings-swatch.is-locked:hover {
+            transform: none; border-color: var(--border-subtle);
+        }
+        .settings-opt.is-locked::after,
+        .settings-swatch.is-locked::after {
+            content: '🔒';
+            position: absolute; top: -8px; right: -8px;
+            font-size: 0.85em;
+            background: var(--bg-surface); border-radius: 50%;
+            width: 22px; height: 22px; display: flex;
+            align-items: center; justify-content: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+            pointer-events: none;
+        }
+        .settings-opt.is-locked {
+            
+            padding-right: 14px;
+        }
+        .settings-opt-level-badge {
+            display: inline-block; margin-left: 6px; font-size: 0.78em;
+            color: #8a6d1f; font-weight: 600;
+        }
+
+        .settings-swatch {
+            width: 32px; height: 32px; border-radius: 50%;
+            border: 2px solid var(--border-subtle); cursor: pointer;
+            padding: 0; transition: transform 0.1s, border-color 0.1s;
+        }
+        .settings-swatch:hover { transform: scale(1.1); }
+        .settings-swatch.is-active { border-color: #007bff; border-width: 3px; }
+
+        .settings-swatch-wrap {
+            display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+        }
+        .settings-swatch-level {
+            font-size: 0.7em; color: var(--text-secondary); font-weight: 600;
+            line-height: 1;
+        }
+
+        .user-title-tag {
+            display: inline-block; margin-left: 6px; font-size: 0.78em;
+            color: #5a2a82; background: #f0e7ff; padding: 1px 8px; border-radius: 10px;
+            font-weight: 500;
+        }
+        body.theme-dark .user-title-tag {
+            color: #c9a9ff; background: rgba(90, 42, 130, 0.35);
+        }
+
+        body.has-custom-bg-page {
+            background-image: var(--custom-bg-url);
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+        }
+        body.has-custom-bg-page .container {
+            
+            background: rgba(255, 255, 255, 0.93);
+            backdrop-filter: blur(3px);
+        }
+        body.theme-dark.has-custom-bg-page .container {
+            background: rgba(29, 33, 41, 0.93);
+        }
+
+        body.has-custom-bg-field .text-display {
+            background-image: var(--custom-bg-url);
+            background-size: cover;
+            background-position: center;
+            
+            box-shadow: inset 0 0 0 2000px rgba(255, 255, 255, 0.75);
+        }
+        body.theme-dark.has-custom-bg-field .text-display {
+            box-shadow: inset 0 0 0 2000px rgba(29, 33, 41, 0.78);
+        }
+
+        .custom-bg-empty {
+            display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+        }
+        .custom-bg-upload-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 14px; border: 1.5px dashed var(--border-subtle);
+            background: transparent; color: var(--text-primary);
+            border-radius: 6px; cursor: pointer; font-size: 0.9em;
+            transition: border-color 0.1s;
+        }
+        .custom-bg-upload-btn:hover { border-color: #007bff; border-style: solid; }
+        .custom-bg-hint {
+            font-size: 0.78em; color: var(--text-secondary);
+        }
+        .custom-bg-error {
+            font-size: 0.82em; color: #dc3545; margin-top: 4px;
+        }
+
+        .custom-bg-preview-block {
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        .custom-bg-preview-row {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        }
+        .custom-bg-preview {
+            width: 120px; height: 72px;
+            background-size: cover; background-position: center;
+            border: 1.5px solid var(--border-subtle); border-radius: 6px;
+            flex-shrink: 0;
+        }
+        .custom-bg-actions {
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .custom-bg-mode-group {
+            display: flex; gap: 4px; flex-wrap: wrap;
+        }
+        .custom-bg-delete-btn {
+            padding: 4px 10px; border: 1px solid var(--border-subtle);
+            background: transparent; color: #dc3545;
+            border-radius: 6px; cursor: pointer; font-size: 0.85em;
+        }
+        .custom-bg-delete-btn:hover { background: rgba(220, 53, 69, 0.08); }
+
+        .custom-bg-locked {
+            opacity: 0.55; filter: grayscale(0.8);
+            padding: 8px 12px; border: 1.5px solid var(--border-subtle);
+            border-radius: 6px; font-size: 0.9em; color: var(--text-secondary);
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+
+        .settings-toggle {
+            display: flex; align-items: center; gap: 10px; cursor: pointer;
+            padding: 6px 0;
+        }
+        .settings-toggle input { width: 18px; height: 18px; cursor: pointer; }
+        .settings-toggle-text { display: flex; flex-direction: column; gap: 2px; }
+        .settings-toggle-label { font-weight: 500; }
+        .settings-toggle-hint { font-size: 0.8em; color: var(--text-secondary); }
+
+        .settings-note {
+            margin-top: 4px; font-size: 0.8em; color: #b8860b;
+            background: #fff8e1; border-left: 3px solid #ffc107;
+            border-radius: 4px; padding: 6px 10px;
+            display: none;
+        }
+        body.theme-dark .settings-note { background: rgba(255, 193, 7, 0.15); color: #ffd54f; }
+        .settings-note.is-visible { display: block; }
     </style>
 </head>
 <body>
@@ -80,15 +644,62 @@
     <h2>Тренажер скорости печати</h2>
 
     <div class="profile-bar">
-    <div>
-        <strong>{{ user.username }}</strong> | Уровень: {{ user.level }}
-        <a href="{{ url_for('stats') }}" style="margin-left: 15px; font-size: 0.9em; color: #007bff; text-decoration: none;">Статистика</a>
+        <div>
+            <strong>{{ user.username }}</strong>{% if user_title_label %}<span class="user-title-tag" id="profileTitleTag">{{ user_title_label }}</span>{% else %}<span class="user-title-tag" id="profileTitleTag" style="display:none;"></span>{% endif %} | Уровень: <span id="profileLevelValue">{{ user.level }}</span>
+            {% if user.current_streak and user.current_streak > 0 %}
+            <span class="streak-pill" id="profileStreakPill"
+                  title="Текущая серия: {{ user.current_streak }} дн.{% if user.longest_streak > user.current_streak %} Лучшая: {{ user.longest_streak }}.{% endif %}"
+                  aria-label="Серия дней подряд: {{ user.current_streak }}">
+                🔥 <span id="profileStreakValue">{{ user.current_streak }}</span>
+            </span>
+            {% else %}
+            <span class="streak-pill streak-pill-empty" id="profileStreakPill"
+                  title="Начните серию: завершите хотя бы один текст сегодня"
+                  aria-label="Серия не начата">
+                🔥 <span id="profileStreakValue">0</span>
+            </span>
+            {% endif %}
+            <a href="{{ url_for('lessons_list') }}" style="margin-left: 15px; font-size: 0.9em; color: #007bff; text-decoration: none;">Уроки</a>
+            <a href="{{ url_for('achievements_page') }}" style="margin-left: 10px; font-size: 0.9em; color: #007bff; text-decoration: none;">Достижения</a>
+            <a href="{{ url_for('leaderboard') }}" style="margin-left: 10px; font-size: 0.9em; color: #007bff; text-decoration: none;">Рейтинг</a>
+            <a href="{{ url_for('stats') }}" style="margin-left: 10px; font-size: 0.9em; color: #007bff; text-decoration: none;">Статистика</a>
+            <button type="button" class="settings-btn" id="openSettingsBtn" aria-label="Настройки" title="Настройки">⚙</button>
+        </div>
+        <div>
+            XP: <span id="profileXpValue">{{ user.xp }}</span> / <span id="profileXpMax">{{ user.level * 100 }}</span>
+            <a href="{{ url_for('logout') }}" class="logout-link">Выйти</a>
+        </div>
     </div>
-    <div>
-        XP: {{ user.xp }} / {{ user.level * 100 }}
-        <a href="{{ url_for('logout') }}" class="logout-link">Выйти</a>
+
+    <div id="cameraBanner" class="camera-banner" style="display:none;">
+        <div class="camera-banner-main">
+            <span class="camera-banner-icon">🎥</span>
+            <div class="camera-banner-text">
+                <strong>Камера недоступна</strong>
+                <div class="camera-banner-sub" id="cameraBannerSub">
+                    Контроль рук отключён. Вы можете продолжать тренировку без него.
+                </div>
+            </div>
+            <button type="button" class="camera-banner-help" id="cameraBannerToggle">Как разрешить?</button>
+            <button type="button" class="camera-banner-close" id="cameraBannerClose" aria-label="Закрыть">×</button>
+        </div>
+        <div class="camera-banner-help-content" id="cameraBannerHelp" style="display:none;">
+            Нажмите иконку замка (или камеры) в адресной строке вашего браузера, откройте
+            настройки сайта и разрешите доступ к камере. Затем обновите страницу.
+        </div>
     </div>
+
+    {% if lesson %}
+    <div class="lesson-banner">
+        <div class="lesson-banner-main">
+            <strong>{{ lesson.title }}</strong>
+            {% if exercise_num %}
+                <span class="lesson-banner-progress">Упражнение {{ exercise_num }} из {{ exercises_total }}</span>
+            {% endif %}
+        </div>
+        <div class="lesson-banner-desc">{{ lesson.description }}</div>
     </div>
+    {% endif %}
 
     <div class="stats">
         <div>Время: <span id="time">0</span> с</div>
@@ -96,32 +707,994 @@
         <div>Точность: <span id="accuracy">100</span>%</div>
     </div>
 
-    <div class="text-display" id="textDisplay"></div>
-    <textarea class="input-area" id="inputArea" placeholder="Начните печатать..." autofocus></textarea>
-    <button class="btn" onclick="location.reload()">Новый текст</button>
+    <div class="typing-area">
+        <div class="text-display" id="textDisplay" tabindex="0"></div>
+
+        <div class="hand-hint" aria-label="Подсказка пальца">
+            
+            <svg viewBox="0 0 200 140" xmlns="http://www.w3.org/2000/svg">
+                
+                <g id="hand-left">
+                    
+                    <path d="M15,90 Q15,130 55,130 Q95,130 95,95 L95,70 L15,70 Z" fill="#f5f5f5" stroke="#bbb" stroke-width="1.5"/>
+                    
+                    <path id="finger-L-pinky"  class="finger-shape pinky"  d="M18,70 Q15,40 20,25 Q28,20 32,28 Q34,50 32,70 Z"/>
+                    
+                    <path id="finger-L-ring"   class="finger-shape ring"   d="M36,70 Q33,30 40,12 Q48,8 52,18 Q54,45 52,70 Z"/>
+                    
+                    <path id="finger-L-middle" class="finger-shape middle" d="M56,70 Q54,25 62,6 Q72,2 76,14 Q78,42 75,70 Z"/>
+                    
+                    <path id="finger-L-index"  class="finger-shape index"  d="M79,70 Q78,32 86,18 Q96,15 97,28 Q98,50 96,70 Z"/>
+                    
+                    <path id="finger-L-thumb"  class="finger-shape thumb"  d="M95,80 Q108,78 114,92 Q116,108 100,110 Q92,108 93,95 Z"/>
+                </g>
+                
+                <g id="hand-right" transform="translate(200,0) scale(-1,1)">
+                    <path d="M15,90 Q15,130 55,130 Q95,130 95,95 L95,70 L15,70 Z" fill="#f5f5f5" stroke="#bbb" stroke-width="1.5"/>
+                    <path id="finger-R-pinky"  class="finger-shape pinky"  d="M18,70 Q15,40 20,25 Q28,20 32,28 Q34,50 32,70 Z"/>
+                    <path id="finger-R-ring"   class="finger-shape ring"   d="M36,70 Q33,30 40,12 Q48,8 52,18 Q54,45 52,70 Z"/>
+                    <path id="finger-R-middle" class="finger-shape middle" d="M56,70 Q54,25 62,6 Q72,2 76,14 Q78,42 75,70 Z"/>
+                    <path id="finger-R-index"  class="finger-shape index"  d="M79,70 Q78,32 86,18 Q96,15 97,28 Q98,50 96,70 Z"/>
+                    <path id="finger-R-thumb"  class="finger-shape thumb"  d="M95,80 Q108,78 114,92 Q116,108 100,110 Q92,108 93,95 Z"/>
+                </g>
+            </svg>
+            <div class="hint-label" id="fingerHintLabel">
+                Начните печатать —<br>подсказка появится здесь
+            </div>
+        </div>
+    </div>
+
+    <div class="keyboard" id="keyboard"></div>
+
+    <button class="btn" id="newTextBtn" type="button" style="width: 100%">Новый текст</button>
 </div>
 
+<div id="camera-wrapper">
+    <video id="video-feed" style="display: none;" playsinline></video>
+    <canvas id="cv-canvas"></canvas>
+    <div id="cv-status">Инициализация...</div>
+    
+    <div id="cv-fallback" class="cv-fallback" style="display:none;">
+        <div class="cv-fallback-icon">📷</div>
+        <div class="cv-fallback-text">Камера недоступна</div>
+    </div>
+</div>
+
+<div id="resultOverlay" class="result-overlay" role="dialog" aria-modal="true" aria-labelledby="resultStatus" aria-hidden="true">
+    <div class="result-card">
+        <h3 id="resultStatus" class="result-status">
+            <span class="result-status-icon" id="resultStatusIcon">✓</span>
+            <span id="resultStatusText">Готово</span>
+        </h3>
+        <p class="result-subtitle" id="resultSubtitle"></p>
+
+        <div class="result-metrics">
+            <div class="result-metric">
+                <div class="result-metric-value" id="resultWpm">0</div>
+                <div class="result-metric-label">зн/мин</div>
+            </div>
+            <div class="result-metric">
+                <div class="result-metric-value" id="resultAccuracy">0%</div>
+                <div class="result-metric-label">точность</div>
+            </div>
+            <div class="result-metric">
+                <div class="result-metric-value" id="resultTime">0с</div>
+                <div class="result-metric-label">время</div>
+            </div>
+            <div class="result-metric">
+                <div class="result-metric-value" id="resultChars">0</div>
+                <div class="result-metric-label">символов</div>
+            </div>
+        </div>
+
+        <div class="result-xp" id="resultXpBlock">
+            <span class="result-xp-label">Получено опыта</span>
+            <span class="result-xp-value" id="resultXpValue">+0 XP</span>
+        </div>
+
+        <div class="result-xp result-levelup" id="resultLevelupBlock" style="display:none;">
+            <span class="result-xp-label">Новый уровень!</span>
+            <span class="result-xp-value" id="resultLevelValue">—</span>
+        </div>
+
+        <div class="result-streak" id="resultStreakBlock" style="display:none;">
+            <span class="result-streak-icon">🔥</span>
+            <div class="result-streak-text">
+                <div class="result-streak-title" id="resultStreakTitle">Серия дней</div>
+                <div class="result-streak-sub"   id="resultStreakSub"></div>
+            </div>
+        </div>
+
+        <div class="result-achievements" id="resultAchievementsBlock" style="display:none;">
+            <div class="result-achievements-title">🏆 Новые достижения</div>
+            <div id="resultAchievementsList"></div>
+        </div>
+
+        <div class="result-weakkeys" id="resultWeakKeys" style="display:none;">
+            <div class="result-weakkeys-title">Клавиши с ошибками</div>
+            <div class="result-weakkeys-list" id="resultWeakKeysList"></div>
+        </div>
+
+        <div class="result-actions">
+            <button type="button" class="result-btn result-btn-secondary" id="resultBtnClose">Посмотреть текст</button>
+            <button type="button" class="result-btn result-btn-primary" id="resultBtnNext">Дальше</button>
+        </div>
+    </div>
+</div>
+
+<div id="settingsOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-hidden="true">
+    <div class="settings-card">
+        <h3 id="settingsTitle" class="settings-title">
+            <span>Настройки</span>
+            <button type="button" class="settings-close" id="settingsCloseBtn" aria-label="Закрыть">×</button>
+        </h3>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Тема</div>
+            <div class="settings-options" id="settingsTheme">
+                
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Размер текста для набора</div>
+            <div class="settings-options" id="settingsFontSize">
+                <button type="button" class="settings-opt" data-value="s">S</button>
+                <button type="button" class="settings-opt" data-value="m">M</button>
+                <button type="button" class="settings-opt" data-value="l">L</button>
+                <button type="button" class="settings-opt" data-value="xl">XL</button>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Подсветка правильных символов</div>
+            <div class="settings-options" id="settingsHighlight">
+                
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Цвет текста для набора</div>
+            <div class="settings-options" id="settingsTypingFg">
+                
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Фон поля для набора</div>
+            <div class="settings-options" id="settingsTypingBg">
+                
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Шрифт для набора</div>
+            <div class="settings-options" id="settingsTypingFont">
+                
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Свой фон</div>
+            <div id="settingsCustomBg">
+                
+            </div>
+            
+            <input type="file" id="settingsCustomBgFileInput"
+                   accept="image/jpeg,image/png" style="display:none;">
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Титул</div>
+            <div class="settings-options" id="settingsTitleGroup">
+                
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Подсказки</div>
+            <label class="settings-toggle">
+                <input type="checkbox" id="settingsHideHandHint">
+                <span class="settings-toggle-text">
+                    <span class="settings-toggle-label">Скрыть подсказку-руку</span>
+                    <span class="settings-toggle-hint">SVG-схема рук с подсветкой пальца рядом с текстом</span>
+                </span>
+            </label>
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Контроль рук (камера)</div>
+            <label class="settings-toggle">
+                <input type="checkbox" id="settingsCvEnabled">
+                <span class="settings-toggle-text">
+                    <span class="settings-toggle-label">Включить контроль рук через камеру</span>
+                    <span class="settings-toggle-hint">Блокирует печать, пока обе руки не в кадре. Отключите, если нет камеры или плохое освещение.</span>
+                </span>
+            </label>
+            <div class="settings-note" id="settingsCvNote">
+                Изменение вступит в силу после перезагрузки страницы.
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-group-title">Приватность</div>
+            <label class="settings-toggle">
+                <input type="checkbox" id="settingsHiddenInLeaderboard" {{ 'checked' if user.hidden_in_leaderboard else '' }}>
+                <span class="settings-toggle-text">
+                    <span class="settings-toggle-label">Скрыть меня в рейтинге</span>
+                    <span class="settings-toggle-hint">Другие пользователи увидят «Аноним» вместо ника. Ваше место в рейтинге при этом сохраняется.</span>
+                </span>
+            </label>
+        </div>
+    </div>
+</div>
+
+<div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="false"></div>
+
 <script>
-    const targetText = "{{ text }}";
+    let targetText = {{ text|tojson }};
     const textDisplay = document.getElementById('textDisplay');
-    const inputArea = document.getElementById('inputArea');
+    const kbContainer = document.getElementById('keyboard');
     const elements = {
         time: document.getElementById('time'),
         wpm: document.getElementById('wpm'),
         accuracy: document.getElementById('accuracy')
     };
+    const fingerHintLabel = document.getElementById('fingerHintLabel');
 
+    const SETTINGS_KEY = 'blindtrain.settings';
+
+    const UNLOCKS = {{ unlocks | tojson }};
+
+    const FONT_SIZES = { s: '1.2em', m: '1.6em', l: '2.0em', xl: '2.4em' };
+
+    const DEFAULT_SETTINGS = {
+        theme:         'light',
+        fontSize:      'm',
+        typingFg:      'default',
+        typingBg:      'default',
+        typingFont:    'default',
+        highlight:     'flash',
+        hideHandHint:  false,
+        cvEnabled:     true,
+    };
+
+    function loadSettings() {
+        try {
+            const raw = localStorage.getItem(SETTINGS_KEY);
+            if (!raw) return { ...DEFAULT_SETTINGS };
+            const parsed = JSON.parse(raw);
+            
+            if (!('highlight' in parsed)) {
+                try {
+                    const legacy = localStorage.getItem('blindtrain.correctHighlight');
+                    if (legacy) parsed.highlight = legacy;
+                } catch (e) {}
+            }
+            return { ...DEFAULT_SETTINGS, ...parsed };
+        } catch (e) {
+            return { ...DEFAULT_SETTINGS };
+        }
+    }
+
+    function saveSettings(s) {
+        try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); }
+        catch (e) {}
+    }
+
+    function isOptionUnlocked(category, value) {
+        const cat = UNLOCKS[category];
+        if (!cat) return true;  
+        const meta = cat[value];
+        if (!meta) return false;
+        return !!meta.unlocked;
+    }
+
+    function sanitizeSettings(s) {
+        ['theme', 'typingFg', 'typingBg', 'typingFont', 'highlight'].forEach(key => {
+            if (!isOptionUnlocked(key, s[key])) {
+                s[key] = DEFAULT_SETTINGS[key];
+            }
+        });
+        return s;
+    }
+
+    function applySettings(s) {
+        document.body.classList.toggle('theme-dark', s.theme === 'dark');
+
+        const size = FONT_SIZES[s.fontSize] || FONT_SIZES.m;
+        document.body.style.setProperty('--typing-font-size', size);
+
+        const fgMeta = UNLOCKS.typingFg && UNLOCKS.typingFg[s.typingFg];
+        if (fgMeta && s.typingFg !== 'default') {
+            document.body.style.setProperty('--typing-fg', fgMeta.swatch);
+        } else {
+            document.body.style.removeProperty('--typing-fg');
+        }
+        const bgMeta = UNLOCKS.typingBg && UNLOCKS.typingBg[s.typingBg];
+        if (bgMeta && s.typingBg !== 'default') {
+            document.body.style.setProperty('--typing-bg', bgMeta.swatch);
+        } else {
+            document.body.style.removeProperty('--typing-bg');
+        }
+
+        const fontMeta = UNLOCKS.typingFont && UNLOCKS.typingFont[s.typingFont];
+        if (fontMeta) {
+            document.body.style.setProperty('--typing-font-family', fontMeta.css_family);
+        } else {
+            document.body.style.removeProperty('--typing-font-family');
+        }
+
+        document.body.classList.remove('mode-flash', 'mode-solid', 'mode-fade');
+        document.body.classList.add('mode-' + s.highlight);
+
+        document.body.classList.toggle('hide-hand-hint', !!s.hideHandHint);
+    }
+
+    function renderOptionGroup({style, category, containerId, activeValue}) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const options = UNLOCKS[category];
+        if (!options) return;
+        container.innerHTML = '';
+
+        Object.entries(options).forEach(([code, meta]) => {
+            const unlocked = !!meta.unlocked;
+            const isActive = unlocked && code === activeValue;
+
+            if (style === 'swatch') {
+                const wrap = document.createElement('div');
+                wrap.className = 'settings-swatch-wrap';
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'settings-swatch' +
+                    (isActive ? ' is-active' : '') +
+                    (unlocked ? '' : ' is-locked');
+                btn.style.background = meta.swatch || '#ccc';
+                btn.dataset.value = code;
+                btn.dataset.locked = unlocked ? '' : '1';
+                btn.title = meta.label + (unlocked ? '' : ` (откроется на ур. ${meta.required_level})`);
+                btn.setAttribute('aria-label', meta.label);
+                wrap.appendChild(btn);
+
+                if (!unlocked) {
+                    const lvl = document.createElement('div');
+                    lvl.className = 'settings-swatch-level';
+                    lvl.textContent = 'ур. ' + meta.required_level;
+                    wrap.appendChild(lvl);
+                }
+                container.appendChild(wrap);
+            } else {
+                
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'settings-opt' +
+                    (isActive ? ' is-active' : '') +
+                    (unlocked ? '' : ' is-locked') +
+                    (style === 'font' ? ' is-font-preview' : '');
+                btn.dataset.value = code;
+                btn.dataset.locked = unlocked ? '' : '1';
+                btn.title = unlocked ? meta.label : `Откроется на уровне ${meta.required_level}`;
+
+                if (style === 'font' && meta.css_family) {
+                    btn.style.fontFamily = meta.css_family;
+                }
+
+                btn.textContent = meta.label;
+                if (!unlocked) {
+                    const badge = document.createElement('span');
+                    badge.className = 'settings-opt-level-badge';
+                    badge.textContent = 'ур. ' + meta.required_level;
+                    btn.appendChild(badge);
+                }
+                container.appendChild(btn);
+            }
+        });
+    }
+
+    let currentSettings = sanitizeSettings(loadSettings());
+    applySettings(currentSettings);
+    saveSettings(currentSettings);
+
+    renderOptionGroup({style:'button',  category:'theme',     containerId:'settingsTheme',     activeValue: currentSettings.theme});
+    renderOptionGroup({style:'button',  category:'highlight', containerId:'settingsHighlight', activeValue: currentSettings.highlight});
+    renderOptionGroup({style:'swatch',  category:'typingFg',  containerId:'settingsTypingFg',  activeValue: currentSettings.typingFg});
+    renderOptionGroup({style:'swatch',  category:'typingBg',  containerId:'settingsTypingBg',  activeValue: currentSettings.typingBg});
+    renderOptionGroup({style:'font',    category:'typingFont',containerId:'settingsTypingFont',activeValue: currentSettings.typingFont});
+    
+    const initialTitle = {{ user.selected_title | tojson }};
+    let selectedTitleCode = initialTitle;
+    renderOptionGroup({style:'button',  category:'title',     containerId:'settingsTitleGroup',     activeValue: initialTitle});
+
+    document.querySelectorAll('#settingsFontSize [data-value]').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.value === currentSettings.fontSize);
+    });
+
+    document.getElementById('settingsHideHandHint').checked = !!currentSettings.hideHandHint;
+    document.getElementById('settingsCvEnabled').checked    = !!currentSettings.cvEnabled;
+
+    function showLockedToast(code, category) {
+        const meta = UNLOCKS[category] && UNLOCKS[category][code];
+        if (!meta) return;
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML =
+            '<span class="toast-icon">🔒</span>' +
+            '<div class="toast-body">' +
+                '<div class="toast-label">Закрыто</div>' +
+                '<div class="toast-title">Откроется на уровне ' + meta.required_level + '</div>' +
+            '</div>';
+        container.appendChild(toast);
+        toast.addEventListener('animationend', (e) => {
+            if (e.animationName === 'toastOut') toast.remove();
+        });
+    }
+
+    function bindOptionGroup(containerId, key, category) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-value]');
+            if (!btn) return;
+            const value = btn.dataset.value;
+            if (btn.dataset.locked === '1') {
+                showLockedToast(value, category);
+                return;
+            }
+
+            if (key === 'title') {
+                
+                fetch('/api/user_settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ selected_title: value }),
+                }).then(r => r.json()).then(data => {
+                    if (data.success && data.selected_title === value) {
+                        selectedTitleCode = value;
+                        container.querySelectorAll('[data-value]').forEach(b => {
+                            b.classList.toggle('is-active', b.dataset.value === value && !b.classList.contains('is-locked'));
+                        });
+                        updateProfileTitle(value);
+                    }
+                }).catch(() => {});
+            } else {
+                currentSettings[key] = value;
+                container.querySelectorAll('[data-value]').forEach(b => {
+                    b.classList.toggle('is-active', b.dataset.value === value && !b.classList.contains('is-locked'));
+                });
+                applySettings(currentSettings);
+                saveSettings(currentSettings);
+            }
+        });
+    }
+    bindOptionGroup('settingsTheme',     'theme',     'theme');
+    bindOptionGroup('settingsFontSize',  'fontSize',  null);  
+    bindOptionGroup('settingsHighlight', 'highlight', 'highlight');
+    bindOptionGroup('settingsTypingFg',  'typingFg',  'typingFg');
+    bindOptionGroup('settingsTypingBg',  'typingBg',  'typingBg');
+    bindOptionGroup('settingsTypingFont','typingFont','typingFont');
+    bindOptionGroup('settingsTitleGroup',     'title',     'title');
+
+    let customBgState = {
+        url:  {{ custom_background_url | tojson }},
+        mode: {{ custom_background_mode | tojson }},
+    };
+
+    function applyCustomBackground() {
+        document.body.classList.remove('has-custom-bg-page', 'has-custom-bg-field');
+        if (!customBgState.url) {
+            document.body.style.removeProperty('--custom-bg-url');
+            return;
+        }
+        const cssUrl = `url("${customBgState.url.replace(/"/g, '\\"')}")`;
+        document.body.style.setProperty('--custom-bg-url', cssUrl);
+        const mode = customBgState.mode;
+        if (mode === 'page' || mode === 'both') {
+            document.body.classList.add('has-custom-bg-page');
+        }
+        if (mode === 'field' || mode === 'both') {
+            document.body.classList.add('has-custom-bg-field');
+        }
+    }
+    applyCustomBackground();
+
+    function renderCustomBgGroup() {
+        const container = document.getElementById('settingsCustomBg');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const unlocked = isOptionUnlocked('customBg', 'enabled');
+        if (!unlocked) {
+            const level = UNLOCKS.customBg && UNLOCKS.customBg.enabled
+                ? UNLOCKS.customBg.enabled.required_level : '?';
+            const locked = document.createElement('div');
+            locked.className = 'custom-bg-locked';
+            locked.innerHTML = '🔒 Откроется на уровне ' + level;
+            container.appendChild(locked);
+            return;
+        }
+
+        if (!customBgState.url) {
+            
+            const wrap = document.createElement('div');
+            wrap.className = 'custom-bg-empty';
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'custom-bg-upload-btn';
+            btn.innerHTML = '📁 Загрузить картинку';
+            btn.addEventListener('click', () => {
+                document.getElementById('settingsCustomBgFileInput').click();
+            });
+            wrap.appendChild(btn);
+
+            const hint = document.createElement('div');
+            hint.className = 'custom-bg-hint';
+            hint.textContent = 'JPG или PNG, до 3 МБ';
+            wrap.appendChild(hint);
+
+            const err = document.createElement('div');
+            err.className = 'custom-bg-error';
+            err.id = 'customBgError';
+            err.style.display = 'none';
+            wrap.appendChild(err);
+
+            container.appendChild(wrap);
+            return;
+        }
+
+        const block = document.createElement('div');
+        block.className = 'custom-bg-preview-block';
+
+        const row = document.createElement('div');
+        row.className = 'custom-bg-preview-row';
+
+        const preview = document.createElement('div');
+        preview.className = 'custom-bg-preview';
+        preview.style.backgroundImage = `url("${customBgState.url.replace(/"/g, '\\"')}")`;
+        row.appendChild(preview);
+
+        const actions = document.createElement('div');
+        actions.className = 'custom-bg-actions';
+
+        const modeGroup = document.createElement('div');
+        modeGroup.className = 'custom-bg-mode-group';
+        [
+            { value: 'none',  label: 'Выключить' },
+            { value: 'page',  label: 'На всю страницу' },
+            { value: 'field', label: 'Только поле' },
+            { value: 'both',  label: 'И там, и там' },
+        ].forEach(opt => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'settings-opt' + (customBgState.mode === opt.value ? ' is-active' : '');
+            b.textContent = opt.label;
+            b.addEventListener('click', () => changeCustomBgMode(opt.value));
+            modeGroup.appendChild(b);
+        });
+        actions.appendChild(modeGroup);
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'custom-bg-delete-btn';
+        del.innerHTML = '🗑 Удалить фон';
+        del.addEventListener('click', deleteCustomBg);
+        actions.appendChild(del);
+
+        const err = document.createElement('div');
+        err.className = 'custom-bg-error';
+        err.id = 'customBgError';
+        err.style.display = 'none';
+        actions.appendChild(err);
+
+        row.appendChild(actions);
+        block.appendChild(row);
+        container.appendChild(block);
+    }
+
+    function showCustomBgError(message) {
+        const err = document.getElementById('customBgError');
+        if (!err) return;
+        err.textContent = message;
+        err.style.display = '';
+    }
+
+    document.getElementById('settingsCustomBgFileInput').addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        if (file.size > 3 * 1024 * 1024) {
+            showCustomBgError('Файл слишком большой (максимум 3 МБ)');
+            e.target.value = '';
+            return;
+        }
+        if (!['image/jpeg', 'image/png'].includes(file.type)) {
+            showCustomBgError('Разрешены только JPG и PNG');
+            e.target.value = '';
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/api/background/upload', { method: 'POST', body: formData })
+            .then(r => r.json().then(body => ({ ok: r.ok, body })))
+            .then(({ ok, body }) => {
+                if (!ok || !body.success) {
+                    showCustomBgError(body.error || 'Не удалось загрузить');
+                    return;
+                }
+                customBgState.url = body.url;
+                customBgState.mode = body.mode;
+                applyCustomBackground();
+                renderCustomBgGroup();
+            })
+            .catch(() => showCustomBgError('Сеть недоступна'))
+            .finally(() => { e.target.value = ''; });
+    });
+
+    function deleteCustomBg() {
+        fetch('/api/background/delete', { method: 'POST' })
+            .then(r => r.json())
+            .then(body => {
+                if (body.success) {
+                    customBgState.url = null;
+                    applyCustomBackground();
+                    renderCustomBgGroup();
+                }
+            })
+            .catch(() => showCustomBgError('Сеть недоступна'));
+    }
+
+    function changeCustomBgMode(mode) {
+        
+        const prev = customBgState.mode;
+        customBgState.mode = mode;
+        applyCustomBackground();
+        renderCustomBgGroup();
+        fetch('/api/background/mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode }),
+        }).then(r => r.json()).then(body => {
+            if (!body.success) {
+                customBgState.mode = prev;
+                applyCustomBackground();
+                renderCustomBgGroup();
+            }
+        }).catch(() => {
+            customBgState.mode = prev;
+            applyCustomBackground();
+            renderCustomBgGroup();
+        });
+    }
+
+    renderCustomBgGroup();
+
+    function updateProfileTitle(code) {
+        const el = document.getElementById('profileTitleTag');
+        if (!el) return;
+        const meta = UNLOCKS.title && UNLOCKS.title[code];
+        const label = (code && meta) ? meta.label : '';
+        if (label) {
+            el.textContent = label;
+            el.style.display = '';
+        } else {
+            el.style.display = 'none';
+        }
+    }
+
+    document.getElementById('settingsHideHandHint').addEventListener('change', (e) => {
+        currentSettings.hideHandHint = e.target.checked;
+        applySettings(currentSettings);
+        saveSettings(currentSettings);
+    });
+    
+    const cvNote = document.getElementById('settingsCvNote');
+    const initialCvEnabled = currentSettings.cvEnabled;
+    document.getElementById('settingsCvEnabled').addEventListener('change', (e) => {
+        currentSettings.cvEnabled = e.target.checked;
+        saveSettings(currentSettings);
+        cvNote.classList.toggle('is-visible', currentSettings.cvEnabled !== initialCvEnabled);
+    });
+
+    const hiddenCheckbox = document.getElementById('settingsHiddenInLeaderboard');
+    if (hiddenCheckbox) {
+        hiddenCheckbox.addEventListener('change', (e) => {
+            const checked = e.target.checked;
+            fetch('/api/user_settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hidden_in_leaderboard: checked }),
+            }).catch(() => {
+                e.target.checked = !checked;
+            });
+        });
+    }
+
+    const settingsOverlay = document.getElementById('settingsOverlay');
+    document.getElementById('openSettingsBtn').addEventListener('click', () => {
+        settingsOverlay.classList.add('is-visible');
+        settingsOverlay.setAttribute('aria-hidden', 'false');
+    });
+    function closeSettings() {
+        settingsOverlay.classList.remove('is-visible');
+        settingsOverlay.setAttribute('aria-hidden', 'true');
+    }
+    document.getElementById('settingsCloseBtn').addEventListener('click', closeSettings);
+    settingsOverlay.addEventListener('click', (e) => {
+        if (e.target.id === 'settingsOverlay') closeSettings();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && settingsOverlay.classList.contains('is-visible')) {
+            closeSettings();
+        }
+    });
+
+    const F = {
+        Lp:  { side: 'L', cls: 'pinky',  name: 'левый мизинец'     },
+        Lr:  { side: 'L', cls: 'ring',   name: 'левый безымянный'  },
+        Lm:  { side: 'L', cls: 'middle', name: 'левый средний'     },
+        Li:  { side: 'L', cls: 'index',  name: 'левый указательный'},
+        Lt:  { side: 'L', cls: 'thumb',  name: 'большой палец'     },
+        Rt:  { side: 'R', cls: 'thumb',  name: 'большой палец'     },
+        Ri:  { side: 'R', cls: 'index',  name: 'правый указательный'},
+        Rm:  { side: 'R', cls: 'middle', name: 'правый средний'    },
+        Rr:  { side: 'R', cls: 'ring',   name: 'правый безымянный' },
+        Rp:  { side: 'R', cls: 'pinky',  name: 'правый мизинец'    }
+    };
+
+    const layout = [
+        [
+            { l: 'ё', f: F.Lp }, { l: '1', f: F.Lp }, { l: '2', f: F.Lr },
+            { l: '3', f: F.Lm }, { l: '4', f: F.Li }, { l: '5', f: F.Li },
+            { l: '6', f: F.Ri }, { l: '7', f: F.Ri }, { l: '8', f: F.Rm },
+            { l: '9', f: F.Rr }, { l: '0', f: F.Rp }, { l: '-', f: F.Rp },
+            { l: '=', f: F.Rp }
+        ],
+        [
+            { l: 'й', f: F.Lp }, { l: 'ц', f: F.Lr }, { l: 'у', f: F.Lm },
+            { l: 'к', f: F.Li }, { l: 'е', f: F.Li }, { l: 'н', f: F.Ri },
+            { l: 'г', f: F.Ri }, { l: 'ш', f: F.Rm }, { l: 'щ', f: F.Rr },
+            { l: 'з', f: F.Rp }, { l: 'х', f: F.Rp }, { l: 'ъ', f: F.Rp }
+        ],
+        [
+            { l: 'ф', f: F.Lp }, { l: 'ы', f: F.Lr }, { l: 'в', f: F.Lm },
+            { l: 'а', f: F.Li }, { l: 'п', f: F.Li }, { l: 'р', f: F.Ri },
+            { l: 'о', f: F.Ri }, { l: 'л', f: F.Rm }, { l: 'д', f: F.Rr },
+            { l: 'ж', f: F.Rp }, { l: 'э', f: F.Rp }
+        ],
+        [
+            { l: 'я', f: F.Lp }, { l: 'ч', f: F.Lr }, { l: 'с', f: F.Lm },
+            { l: 'м', f: F.Li }, { l: 'и', f: F.Li }, { l: 'т', f: F.Ri },
+            { l: 'ь', f: F.Ri }, { l: 'б', f: F.Rm }, { l: 'ю', f: F.Rr },
+            { l: '.', f: F.Rp }, { l: ',', f: F.Rp }
+        ],
+        [
+            { l: ' ', f: F.Lt, wide: 'space', display: 'Пробел' }
+        ]
+    ];
+
+    const SHIFTED = {
+        '!': '1', '"': '2', '№': '3', ';': '4', '%': '5',
+        ':': '6', '?': '7', '*': '8', '(': '9', ')': '0',
+        '_': '-', '+': '=',
+        ',': '.',
+    };
+
+    const keyElements = {};
+    const keyFingerMap = {};
+
+    layout.forEach(row => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'row';
+        row.forEach(keyDef => {
+            const keyDiv = document.createElement('div');
+            const fingerCls = `finger-${keyDef.f.cls}`;
+            keyDiv.className = `key ${fingerCls}${keyDef.wide ? ' ' + keyDef.wide : ''}`;
+            keyDiv.innerText = keyDef.display || keyDef.l;
+            rowDiv.appendChild(keyDiv);
+            keyElements[keyDef.l] = keyDiv;
+            keyFingerMap[keyDef.l] = keyDef.f;
+        });
+        kbContainer.appendChild(rowDiv);
+    });
+
+    const shiftRow = document.createElement('div');
+    shiftRow.className = 'row';
+    ['L', 'R'].forEach(side => {
+        const shiftDiv = document.createElement('div');
+        shiftDiv.className = `key wide finger-pinky`;
+        shiftDiv.innerText = 'Shift';
+        shiftDiv.style.minWidth = '90px';
+        shiftRow.appendChild(shiftDiv);
+        keyElements['__shift_' + side] = shiftDiv;
+    });
+    
+    const spaceRow = kbContainer.lastChild;
+    kbContainer.insertBefore(shiftRow, spaceRow);
+
+    function clearFingerHighlight() {
+        document.querySelectorAll('.finger-shape').forEach(el => {
+            el.classList.remove('active', 'pinky', 'ring', 'middle', 'index', 'thumb');
+        });
+    }
+
+    function highlightFinger(finger) {
+        
+        const id = `finger-${finger.side}-${finger.cls}`;
+        const el = document.getElementById(id);
+        if (el) {
+            el.classList.add('active', finger.cls);
+        }
+    }
+
+    function updateHints() {
+        Object.values(keyElements).forEach(el => {
+            el.classList.remove('target', 'target-shift');
+        });
+        clearFingerHighlight();
+
+        if (currentIndex >= targetText.length) {
+            fingerHintLabel.innerHTML = '<strong>Готово!</strong>';
+            return;
+        }
+
+        const nextChar = targetText[currentIndex];
+        const lower = nextChar.toLowerCase();
+
+        let baseKey = lower;
+        let needsShift = false;
+
+        if (nextChar !== lower) {
+            needsShift = true;
+        } else if (SHIFTED[nextChar]) {
+            baseKey = SHIFTED[nextChar];
+            needsShift = true;
+        }
+
+        const keyEl = keyElements[baseKey];
+        const finger = keyFingerMap[baseKey];
+
+        if (keyEl && finger) {
+            keyEl.classList.add('target');
+            highlightFinger(finger);
+
+            let labelText = `<strong>${nextChar === ' ' ? '␣ (пробел)' : nextChar}</strong>${finger.name}`;
+
+            if (needsShift) {
+                
+                const shiftSide = finger.side === 'L' ? 'R' : 'L';
+                const shiftEl = keyElements['__shift_' + shiftSide];
+                if (shiftEl) shiftEl.classList.add('target-shift');
+                const shiftFinger = { side: shiftSide, cls: 'pinky', name: (shiftSide === 'L' ? 'левый' : 'правый') + ' мизинец' };
+                highlightFinger(shiftFinger);
+                labelText = `<strong>${nextChar}</strong>${finger.name} + Shift (${shiftFinger.name})`;
+            }
+
+            fingerHintLabel.innerHTML = labelText;
+        } else {
+            fingerHintLabel.innerHTML = `<strong>${nextChar}</strong>символ вне раскладки`;
+        }
+    }
+
+    let currentIndex = 0;
+    let totalTyped = 0;
+    let totalErrors = 0;
     let timeElapsed = 0;
     let timer = null;
     let isTyping = false;
+    let spans = [];
+    let errorsByChar = {};
 
-    targetText.split('').forEach(char => {
+    function initExercise(text) {
+        targetText = text;
+        currentIndex = 0;
+        totalTyped = 0;
+        totalErrors = 0;
+        timeElapsed = 0;
+        isTyping = false;
+        if (timer) { clearInterval(timer); timer = null; }
+        errorsByChar = {};
+
+        elements.time.innerText = 0;
+        elements.wpm.innerText = 0;
+        elements.accuracy.innerText = 100;
+
+        textDisplay.innerHTML = '';
+        spans = [];
+        targetText.split('').forEach((char, index) => {
+            const span = document.createElement('span');
+            span.innerText = char;
+            if (index === 0) span.classList.add('current-char');
+            textDisplay.appendChild(span);
+            spans.push(span);
+        });
+
+        updateHints();
+    }
+
+    function updateLessonBanner(lesson, exerciseNum, exercisesTotal) {
+        const banner = document.querySelector('.lesson-banner');
+        if (!banner || !lesson) return;
+        const titleEl = banner.querySelector('.lesson-banner-main strong');
+        if (titleEl) titleEl.textContent = lesson.title;
+        const descEl = banner.querySelector('.lesson-banner-desc');
+        if (descEl) descEl.textContent = lesson.description;
+        const progressEl = banner.querySelector('.lesson-banner-progress');
+        if (exerciseNum && exercisesTotal) {
+            if (progressEl) {
+                progressEl.textContent = 'Упражнение ' + exerciseNum + ' из ' + exercisesTotal;
+            } else {
+                const mainRow = banner.querySelector('.lesson-banner-main');
+                if (mainRow) {
+                    const sp = document.createElement('span');
+                    sp.className = 'lesson-banner-progress';
+                    sp.textContent = 'Упражнение ' + exerciseNum + ' из ' + exercisesTotal;
+                    mainRow.appendChild(sp);
+                }
+            }
+        } else if (progressEl) {
+            progressEl.remove();
+        }
+    }
+
+    function loadNextExercise() {
+        return fetch('/api/next_exercise')
+            .then(res => res.json())
+            .then(data => {
+                if (!data || !data.success) return;
+                initExercise(data.text);
+                updateLessonBanner(data.lesson, data.exercise_num, data.exercises_total);
+            })
+            .catch(() => {});
+    }
+
+    targetText.split('').forEach((char, index) => {
         const span = document.createElement('span');
         span.innerText = char;
+        if (index === 0) span.classList.add('current-char');
         textDisplay.appendChild(span);
+        spans.push(span);
     });
 
-    inputArea.addEventListener('input', () => {
+    updateHints();
+
+    fetch('/api/weak_keys')
+        .then(res => res.json())
+        .then(data => {
+            const errors = data.errors || {};
+            const max = data.max || 0;
+            if (max === 0) return;
+
+            for (const [char, count] of Object.entries(errors)) {
+                const keyEl = keyElements[char];
+                if (!keyEl) continue;
+
+                const intensity = Math.min(1, 0.25 + 0.75 * (count / max));
+                keyEl.classList.add('has-heat');
+                keyEl.style.setProperty('--heat', intensity.toFixed(2));
+                keyEl.title = `Ошибок: ${count}`;
+            }
+        })
+        .catch(() => {  });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key.length !== 1) return;
+        if (e.key === ' ') e.preventDefault();
+
+        if (!isHandsValid && cvReady && (performance.now() - lastHandsValidAt > HANDS_GRACE_MS)) {
+            document.body.classList.remove('cheat-alert');
+            void document.body.offsetWidth;
+            document.body.classList.add('cheat-alert');
+            return;
+        }
+
+        if (currentIndex >= targetText.length) return;
+
         if (!isTyping) {
             isTyping = true;
             timer = setInterval(() => {
@@ -131,58 +1704,521 @@
             }, 1000);
         }
 
-        const spans = textDisplay.querySelectorAll('span');
-        const values = inputArea.value.split('');
-        let isComplete = true;
+        totalTyped++;
+        const expectedChar = targetText[currentIndex];
+        const currentSpan = spans[currentIndex];
 
-        spans.forEach((span, i) => {
-            const char = values[i];
-            if (!char) {
-                span.className = '';
-                isComplete = false;
-            } else if (char === span.innerText) {
-                span.className = 'correct';
-            } else {
-                span.className = 'incorrect';
-                isComplete = false;
-            }
-        });
-
-        if (isComplete && values.length === spans.length) {
-            clearInterval(timer);
-            inputArea.disabled = true;
-
-            fetch('/save_stats', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    wpm: parseInt(elements.wpm.innerText),
-                    accuracy: parseInt(elements.accuracy.innerText)
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    let msg = `Текст набран.\nОпыт: +${data.gained_xp}`;
-                    if (data.leveled_up) msg += `\nНовый уровень: ${data.new_level}`;
-                    alert(msg);
-                    location.reload();
-                }
-            })
-            .catch(err => console.error(err));
+        const pressedKey = e.key.toLowerCase();
+        const keyEl = keyElements[pressedKey];
+        if (keyEl) {
+            keyEl.classList.add('active');
+            setTimeout(() => keyEl.classList.remove('active'), 120);
         }
+        
+        if (e.key !== pressedKey || SHIFTED[e.key]) {
+            const baseKey = SHIFTED[e.key] || pressedKey;
+            const f = keyFingerMap[baseKey];
+            if (f) {
+                const shiftSide = f.side === 'L' ? 'R' : 'L';
+                const shiftEl = keyElements['__shift_' + shiftSide];
+                if (shiftEl) {
+                    shiftEl.classList.add('active');
+                    setTimeout(() => shiftEl.classList.remove('active'), 120);
+                }
+            }
+        }
+
+        if (e.key === expectedChar) {
+            currentSpan.classList.remove('current-char', 'incorrect');
+            currentSpan.classList.add('correct');
+            
+            currentSpan.classList.add('just-correct');
+            setTimeout(() => currentSpan.classList.remove('just-correct'), 100);
+            currentIndex++;
+
+            if (currentIndex < targetText.length) {
+                spans[currentIndex].classList.add('current-char');
+            } else {
+                finishTyping();
+            }
+            updateHints();
+        } else {
+            currentSpan.classList.add('incorrect');
+            totalErrors++;
+            
+            const key = expectedChar.toLowerCase();
+            errorsByChar[key] = (errorsByChar[key] || 0) + 1;
+        }
+
+        updateStats();
     });
 
     function updateStats() {
-        const typed = inputArea.value.length;
-        const correct = document.querySelectorAll('.correct').length;
-
         if (timeElapsed > 0) {
-            elements.wpm.innerText = Math.round((correct / timeElapsed) * 60);
+            elements.wpm.innerText = Math.round((currentIndex / timeElapsed) * 60);
         }
-        if (typed > 0) {
-            elements.accuracy.innerText = Math.round((correct / typed) * 100);
+        if (totalTyped > 0) {
+            
+            const currentAccuracy = Math.max(0, Math.floor(((totalTyped - totalErrors) / totalTyped) * 100));
+            elements.accuracy.innerText = currentAccuracy;
         }
+    }
+
+    function finishTyping() {
+        clearInterval(timer);
+
+        fetch('/save_stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                wpm: parseInt(elements.wpm.innerText),
+                accuracy: parseInt(elements.accuracy.innerText),
+                errors_by_char: errorsByChar,
+                text_length: targetText.length,
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) return;
+            showResultScreen(data);
+        });
+    }
+
+    function formatKeyName(key) {
+        if (key === ' ') return 'Пробел';
+        if (key === '\n') return 'Enter';
+        if (key === '\t') return 'Tab';
+        return key;
+    }
+
+    function dayWord(n) {
+        const abs = Math.abs(n) % 100;
+        const n1 = abs % 10;
+        if (abs > 10 && abs < 20) return 'дней';
+        if (n1 > 1 && n1 < 5) return 'дня';
+        if (n1 === 1) return 'день';
+        return 'дней';
+    }
+
+    function updateProfileStreakPill(current, changed) {
+        const pill = document.getElementById('profileStreakPill');
+        const valueEl = document.getElementById('profileStreakValue');
+        if (!pill || !valueEl) return;
+        valueEl.textContent = current;
+        if (current > 0) {
+            pill.classList.remove('streak-pill-empty');
+        }
+        if (changed) {
+            pill.classList.remove('is-updated');
+
+            void pill.offsetWidth;
+            pill.classList.add('is-updated');
+        }
+    }
+
+    function escapeHtml(s) {
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    }
+
+    function updateProfileXp(data) {
+        if (data == null) return;
+        const levelEl = document.getElementById('profileLevelValue');
+        const xpEl    = document.getElementById('profileXpValue');
+        const xpMaxEl = document.getElementById('profileXpMax');
+
+        const newLevel = (typeof data.new_level === 'number') ? data.new_level : null;
+        const newXp    = (typeof data.new_xp    === 'number') ? data.new_xp    : null;
+
+        if (newLevel != null && levelEl) levelEl.textContent = newLevel;
+        if (newXp != null && xpEl)       xpEl.textContent    = newXp;
+        if (newLevel != null && xpMaxEl) xpMaxEl.textContent = newLevel * 100;
+
+        if (data.leveled_up && newLevel != null) {
+            for (const cat of Object.keys(UNLOCKS)) {
+                for (const code of Object.keys(UNLOCKS[cat])) {
+                    UNLOCKS[cat][code].unlocked = newLevel >= UNLOCKS[cat][code].required_level;
+                }
+            }
+            renderOptionGroup({style:'button', category:'theme',      containerId:'settingsTheme',         activeValue: currentSettings.theme});
+            renderOptionGroup({style:'button', category:'highlight',  containerId:'settingsHighlight',     activeValue: currentSettings.highlight});
+            renderOptionGroup({style:'swatch', category:'typingFg',   containerId:'settingsTypingFg',      activeValue: currentSettings.typingFg});
+            renderOptionGroup({style:'swatch', category:'typingBg',   containerId:'settingsTypingBg',      activeValue: currentSettings.typingBg});
+            renderOptionGroup({style:'font',   category:'typingFont', containerId:'settingsTypingFont',    activeValue: currentSettings.typingFont});
+            renderOptionGroup({style:'button', category:'title',      containerId:'settingsTitleGroup',    activeValue: selectedTitleCode});
+            if (typeof renderCustomBgGroup === 'function') renderCustomBgGroup();
+        }
+    }
+
+    function showAchievementToast(ach) {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.setAttribute('role', 'status');
+        toast.innerHTML =
+            '<span class="toast-icon">' + ach.icon + '</span>' +
+            '<div class="toast-body">' +
+                '<div class="toast-label">Новое достижение</div>' +
+                '<div class="toast-title">' + escapeHtml(ach.title) + '</div>' +
+            '</div>';
+        container.appendChild(toast);
+        
+        toast.addEventListener('animationend', (e) => {
+            if (e.animationName === 'toastOut') toast.remove();
+        });
+    }
+
+    function showResultScreen(data) {
+        const overlay = document.getElementById('resultOverlay');
+        const statusText = document.getElementById('resultStatusText');
+        const statusIcon = document.getElementById('resultStatusIcon');
+        const statusEl = document.getElementById('resultStatus');
+        const subtitle = document.getElementById('resultSubtitle');
+
+        statusEl.classList.remove('is-success', 'is-warn', 'is-neutral');
+        if (data.lesson_completed) {
+            statusText.textContent = 'Урок пройден!';
+            statusIcon.textContent = '🎉';
+            statusEl.classList.add('is-success');
+            subtitle.textContent = 'Все упражнения урока зачтены.';
+        } else if (data.exercise_passed) {
+            statusText.textContent = 'Упражнение зачтено';
+            statusIcon.textContent = '✓';
+            statusEl.classList.add('is-success');
+            subtitle.textContent = 'Можно переходить к следующему.';
+        } else if (data.pass_threshold) {
+            statusText.textContent = 'Упражнение не зачтено';
+            statusIcon.textContent = '⚠';
+            statusEl.classList.add('is-warn');
+            subtitle.textContent = `Точность ниже ${data.pass_threshold}% — попробуйте ещё раз.`;
+        } else {
+            statusText.textContent = 'Текст пройден';
+            statusIcon.textContent = '✓';
+            statusEl.classList.add('is-neutral');
+            subtitle.textContent = 'Свободная практика.';
+        }
+
+        document.getElementById('resultWpm').textContent = elements.wpm.innerText;
+        document.getElementById('resultAccuracy').textContent = elements.accuracy.innerText + '%';
+        document.getElementById('resultTime').textContent = timeElapsed + 'с';
+        document.getElementById('resultChars').textContent = targetText.length;
+
+        document.getElementById('resultXpValue').textContent = '+' + (data.gained_xp || 0) + ' XP';
+        const levelupBlock = document.getElementById('resultLevelupBlock');
+        if (data.leveled_up) {
+            levelupBlock.style.display = '';
+            document.getElementById('resultLevelValue').textContent = 'Уровень ' + data.new_level;
+        } else {
+            levelupBlock.style.display = 'none';
+        }
+
+        updateProfileXp(data);
+
+        const streakBlock = document.getElementById('resultStreakBlock');
+        const streakTitle = document.getElementById('resultStreakTitle');
+        const streakSub   = document.getElementById('resultStreakSub');
+        streakBlock.classList.remove('is-record');
+        const evt = data.streak_event;
+        const cur = data.streak_current;
+        const best = data.streak_longest;
+        if (evt === 'new_record') {
+            streakBlock.style.display = '';
+            streakBlock.classList.add('is-record');
+            streakTitle.textContent = 'Новый рекорд серии!';
+            streakSub.textContent = cur + ' ' + dayWord(cur) + ' подряд.';
+        } else if (evt === 'continued') {
+            streakBlock.style.display = '';
+            streakTitle.textContent = 'Серия продлена';
+            const tail = (best > cur) ? ' Лучшая: ' + best + '.' : '';
+            streakSub.textContent = cur + ' ' + dayWord(cur) + ' подряд.' + tail;
+        } else if (evt === 'started') {
+            streakBlock.style.display = '';
+            streakTitle.textContent = (best > 0) ? 'Серия начата заново' : 'Серия начата!';
+            streakSub.textContent = 'Приходите завтра, чтобы продолжить.';
+        } else {
+            
+            streakBlock.style.display = 'none';
+        }
+
+        if (typeof cur === 'number') {
+            updateProfileStreakPill(cur, evt !== 'same_day');
+        }
+
+        const achList = data.new_achievements || [];
+        const achBlock = document.getElementById('resultAchievementsBlock');
+        const achListEl = document.getElementById('resultAchievementsList');
+        if (achList.length > 0) {
+            achListEl.innerHTML = '';
+            achList.forEach(ach => {
+                const card = document.createElement('div');
+                card.className = 'result-ach-card';
+                card.innerHTML =
+                    '<span class="result-ach-icon">' + ach.icon + '</span>' +
+                    '<div class="result-ach-body">' +
+                        '<div class="result-ach-title">' + escapeHtml(ach.title) + '</div>' +
+                        '<div class="result-ach-desc">' + escapeHtml(ach.description) + '</div>' +
+                    '</div>';
+                achListEl.appendChild(card);
+            });
+            achBlock.style.display = '';
+            
+            achList.forEach((ach, i) => {
+                setTimeout(() => showAchievementToast(ach), i * 400);
+            });
+        } else {
+            achBlock.style.display = 'none';
+        }
+
+        const weakBlock = document.getElementById('resultWeakKeys');
+        const weakList  = document.getElementById('resultWeakKeysList');
+        const entries = Object.entries(errorsByChar)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3);
+        if (entries.length === 0) {
+            weakBlock.style.display = 'none';
+        } else {
+            weakList.innerHTML = '';
+            entries.forEach(([key, count]) => {
+                const chip = document.createElement('span');
+                chip.className = 'result-weakkey';
+                chip.innerHTML = '<strong>' + formatKeyName(key) + '</strong>' +
+                                 '<span class="result-weakkey-count">×' + count + '</span>';
+                weakList.appendChild(chip);
+            });
+            weakBlock.style.display = '';
+        }
+
+        overlay.classList.add('is-visible');
+        overlay.setAttribute('aria-hidden', 'false');
+        
+        document.getElementById('resultBtnNext').focus();
+    }
+
+    function hideResultScreen() {
+        const overlay = document.getElementById('resultOverlay');
+        overlay.classList.remove('is-visible');
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    document.getElementById('resultBtnNext').addEventListener('click', () => {
+        hideResultScreen();
+        loadNextExercise();
+    });
+
+    document.getElementById('resultBtnClose').addEventListener('click', hideResultScreen);
+
+    document.getElementById('newTextBtn').addEventListener('click', () => {
+        loadNextExercise();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        const overlay = document.getElementById('resultOverlay');
+        if (e.key === 'Escape' && overlay.classList.contains('is-visible')) {
+            hideResultScreen();
+        }
+    });
+    document.getElementById('resultOverlay').addEventListener('click', (e) => {
+        if (e.target.id === 'resultOverlay') hideResultScreen();
+    });
+
+    const videoElement = document.getElementById('video-feed');
+    const canvasElement = document.getElementById('cv-canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const cvStatus = document.getElementById('cv-status');
+    const cameraWrapper = document.getElementById('camera-wrapper');
+
+    let isHandsValid = false;
+    let cvReady = false;
+    let lastHandsValidAt = 0;
+    const HANDS_GRACE_MS = 1000;
+
+    if (!currentSettings.cvEnabled) {
+        cameraWrapper.style.display = 'none';
+        isHandsValid = true;
+    } else {
+        canvasElement.width = 200;
+        canvasElement.height = 150;
+
+        const POSE_WRIST_MIN_DX = 0.15;
+        const POSE_WRIST_MAX_DX = 0.75;
+        const POSE_TILT_THRESHOLD = 0.30;
+
+        function analyzePose(handsList) {
+            const sorted = [...handsList].sort((a, b) => a.landmarks[0].x - b.landmarks[0].x);
+            const leftInFrame  = sorted[0];
+            const rightInFrame = sorted[1];
+
+            if (leftInFrame.label && rightInFrame.label &&
+                leftInFrame.label !== 'Left') {
+                return 'swapped';
+            }
+
+            const dx = Math.abs(rightInFrame.landmarks[0].x - leftInFrame.landmarks[0].x);
+            if (dx < POSE_WRIST_MIN_DX) return 'too_close';
+            if (dx > POSE_WRIST_MAX_DX) return 'too_far';
+
+            for (const hand of handsList) {
+                const wrist = hand.landmarks[0];
+                const midTip = hand.landmarks[12];
+                const handDx = Math.abs(midTip.x - wrist.x);
+                const handDy = Math.abs(midTip.y - wrist.y);
+                if (handDy - handDx > POSE_TILT_THRESHOLD) return 'tilted';
+            }
+
+            return 'ok';
+        }
+
+        let lastStatus = null;
+        let lastStatusChangeAt = 0;
+        const STATUS_DEBOUNCE_MS = 500;
+
+        function setCvStatus(key, text, color) {
+            const now = Date.now();
+            if (key === lastStatus) {
+                cvStatus.innerText = text;
+                cvStatus.style.color = color;
+                cameraWrapper.style.borderColor = color;
+                return;
+            }
+            if (now - lastStatusChangeAt < STATUS_DEBOUNCE_MS) return;
+            lastStatus = key;
+            lastStatusChangeAt = now;
+            cvStatus.innerText = text;
+            cvStatus.style.color = color;
+            cameraWrapper.style.borderColor = color;
+        }
+
+        function onCvResults(results) {
+            if (!cvReady) { cvReady = true; setCvStatus('init', 'Ожидание рук', '#dc3545'); }
+
+            const landmarksList = results.multiHandLandmarks || [];
+            const handednessList = results.multiHandedness || [];
+            const handsCount = landmarksList.length;
+
+            if (pendingCanvasPaint) cancelAnimationFrame(pendingCanvasPaint);
+            pendingCanvasPaint = requestAnimationFrame(() => {
+                pendingCanvasPaint = 0;
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                try {
+                    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+                } catch (_) {}
+            });
+
+            if (handsCount !== 2) {
+                isHandsValid = false;
+                setCvStatus('no_hands', 'Верните руки!', '#dc3545');
+                return;
+            }
+
+            isHandsValid = true;
+            lastHandsValidAt = performance.now();
+
+            const hands = landmarksList.map((lm, i) => ({
+                landmarks: lm,
+                label: handednessList[i] ? handednessList[i].label : null,
+            }));
+
+            const pose = analyzePose(hands);
+            switch (pose) {
+                case 'swapped':   setCvStatus('swapped',   'Руки перепутаны',       '#d4a017'); break;
+                case 'too_close': setCvStatus('too_close', 'Руки слишком близко',   '#d4a017'); break;
+                case 'too_far':   setCvStatus('too_far',   'Руки слишком далеко',   '#d4a017'); break;
+                case 'tilted':    setCvStatus('tilted',    'Разверните ладони',     '#d4a017'); break;
+                default:          setCvStatus('ok',        'Обе руки в кадре',      '#28a745');
+            }
+        }
+
+        let pendingCanvasPaint = 0;
+
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 0,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+        });
+        hands.onResults(onCvResults);
+
+        let cvBusy = false;
+        let lastSendAt = 0;
+        const MIN_SEND_INTERVAL_MS = 140;
+
+        function scheduleSend() {
+            if (cvBusy) return;
+            const now = performance.now();
+            if (now - lastSendAt < MIN_SEND_INTERVAL_MS) return;
+            cvBusy = true;
+            lastSendAt = now;
+            const run = async () => {
+                try {
+                    await hands.send({ image: videoElement });
+                } catch (_) {
+                } finally {
+                    cvBusy = false;
+                }
+            };
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(run, { timeout: 80 });
+            } else {
+                setTimeout(run, 0);
+            }
+        }
+
+        function enterCameraFallback(reason) {
+            console.warn('Камера недоступна:', reason);
+            isHandsValid = true;
+            canvasElement.style.display = 'none';
+            cvStatus.style.display = 'none';
+            const fallback = document.getElementById('cv-fallback');
+            if (fallback) fallback.style.display = '';
+            const banner = document.getElementById('cameraBanner');
+            if (banner) banner.style.display = '';
+            const stream = videoElement.srcObject;
+            if (stream && typeof stream.getTracks === 'function') {
+                stream.getTracks().forEach(t => { try { t.stop(); } catch (_) {} });
+                videoElement.srcObject = null;
+            }
+        }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            enterCameraFallback('getUserMedia недоступен');
+        } else if (typeof Hands === 'undefined' || typeof Camera === 'undefined') {
+            enterCameraFallback('MediaPipe не загрузился');
+        } else {
+            navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 192 }, height: { ideal: 144 } }
+            })
+                .then(stream => {
+                    stream.getTracks().forEach(t => t.stop());
+                    const camera = new Camera(videoElement, {
+                        onFrame: async () => { scheduleSend(); },
+                        width: 192, height: 144,
+                    });
+                    camera.start();
+                })
+                .catch(err => {
+                    enterCameraFallback(err.name + ': ' + err.message);
+                });
+        }
+    }
+
+    const bannerToggle = document.getElementById('cameraBannerToggle');
+    const bannerHelp   = document.getElementById('cameraBannerHelp');
+    const bannerClose  = document.getElementById('cameraBannerClose');
+    if (bannerToggle && bannerHelp) {
+        bannerToggle.addEventListener('click', () => {
+            const isHidden = bannerHelp.style.display === 'none';
+            bannerHelp.style.display = isHidden ? '' : 'none';
+            bannerToggle.textContent = isHidden ? 'Скрыть' : 'Как разрешить?';
+        });
+    }
+    if (bannerClose) {
+        bannerClose.addEventListener('click', () => {
+            const banner = document.getElementById('cameraBanner');
+            if (banner) banner.style.display = 'none';
+        });
     }
 </script>
 

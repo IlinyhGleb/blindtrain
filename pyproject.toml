@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blindtrain"
+version = "0.1.0"
+description = "Веб-тренажер слепой печати с визуализацией пальцев, контролем рук через компьютерное зрение и элементами геймификации"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Student" }
+]
+keywords = ["typing", "trainer", "flask", "education"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Framework :: Flask",
+    "Topic :: Education",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+    "Flask>=3.0.0",
+    "Flask-SQLAlchemy>=3.1.1",
+    "Flask-Login>=0.6.3",
+    "Werkzeug>=3.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest_check",
+    "pytest-cov"
+]
+
+[project.scripts]
+blindtrain = "app:main"
+
+[tool.setuptools]
+py-modules = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --cov=app --cov-report=term-missing"

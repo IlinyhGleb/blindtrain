@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Рейтинг</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding: 30px 20px; margin: 0; color: #333; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 720px; }
+        .back-link { display: inline-block; margin-bottom: 10px; color: #007bff; text-decoration: none; font-size: 0.95em; }
+        h2 { margin: 0 0 4px; }
+        .subtitle { color: #6c757d; font-size: 0.9em; margin-bottom: 16px; }
+
+        .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #e9ecef; }
+        .tab {
+            padding: 8px 16px; background: none; border: none; cursor: pointer;
+            font-size: 0.95em; color: #6c757d; text-decoration: none;
+            border-bottom: 2px solid transparent; margin-bottom: -2px;
+            transition: color 0.1s, border-color 0.1s;
+        }
+        .tab:hover { color: #007bff; }
+        .tab.is-active { color: #007bff; border-bottom-color: #007bff; font-weight: 600; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 10px 12px; }
+        th { font-size: 0.85em; color: #6c757d; font-weight: 600; border-bottom: 1px solid #e9ecef; }
+        tbody tr { border-bottom: 1px solid #f1f3f5; }
+        tbody tr:last-child { border-bottom: none; }
+
+        .col-pos { width: 50px; color: #6c757d; font-weight: 600; }
+        .col-metric { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+
+        .row-rank-1 .col-pos { color: #b8860b; }
+        .row-rank-2 .col-pos { color: #7a7a7a; }
+        .row-rank-3 .col-pos { color: #a15a2c; }
+
+        .row-me { background: #e7f3ff; }
+        .row-me td { font-weight: 600; }
+
+        .divider td {
+            border: none; padding: 10px 12px; color: #adb5bd;
+            text-align: center; font-size: 0.8em; letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .name-anon { color: #6c757d; font-style: italic; }
+        .name-me-badge {
+            display: inline-block; margin-left: 6px; font-size: 0.75em;
+            color: #007bff; background: #e7f3ff; padding: 1px 6px; border-radius: 8px;
+            font-weight: 500;
+        }
+        .lb-title-tag {
+            display: inline-block; margin-left: 6px; font-size: 0.75em;
+            color: #5a2a82; background: #f0e7ff; padding: 1px 6px; border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .empty-state {
+            padding: 30px; text-align: center; color: #6c757d; font-size: 0.95em;
+        }
+
+        @media (max-width: 520px) {
+            .container { padding: 22px 18px; }
+            th, td { padding: 8px 6px; }
+            .col-pos { width: 36px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('index') }}" class="back-link">← Вернуться к тренажёру</a>
+        <h2>Рейтинг</h2>
+        <div class="subtitle">{{ metric_title }} · всего учеников: {{ total_users }}</div>
+
+        <div class="tabs" role="tablist">
+            <a href="{{ url_for('leaderboard', tab='level') }}"
+               class="tab {{ 'is-active' if tab == 'level' else '' }}"
+               role="tab" aria-selected="{{ 'true' if tab == 'level' else 'false' }}">
+                По уровню
+            </a>
+            <a href="{{ url_for('leaderboard', tab='speed') }}"
+               class="tab {{ 'is-active' if tab == 'speed' else '' }}"
+               role="tab" aria-selected="{{ 'true' if tab == 'speed' else 'false' }}">
+                По лучшей скорости
+            </a>
+        </div>
+
+        {% if not top %}
+            <div class="empty-state">Пока никто не попал в рейтинг.</div>
+        {% else %}
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-pos">#</th>
+                    <th>Ученик</th>
+                    <th class="col-metric">
+                        {% if tab == 'level' %}Уровень{% else %}Скорость{% endif %}
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in top %}
+                <tr class="row-rank-{{ row.position if row.position <= 3 else 'other' }}
+                           {{ 'row-me' if row.user_id == user.id else '' }}">
+                    <td class="col-pos">{{ row.position }}</td>
+                    <td>
+                        {% if row.user_id == user.id %}
+                            {# Свою строку всегда показываем под реальным ником #}
+                            <span>{{ row.username }}</span>
+                            {% if row.title_label %}<span class="lb-title-tag">{{ row.title_label }}</span>{% endif %}
+                            <span class="name-me-badge">вы</span>
+                        {% elif row.hidden %}
+                            <span class="name-anon">Аноним</span>
+                            {# Титул у Анонима скрываем вместе с ником — это личная информация #}
+                        {% else %}
+                            <span>{{ row.username }}</span>
+                            {% if row.title_label %}<span class="lb-title-tag">{{ row.title_label }}</span>{% endif %}
+                        {% endif %}
+                    </td>
+                    <td class="col-metric">{{ row.metric_label }}</td>
+                </tr>
+                {% endfor %}
+
+                {# Если пользователь не попал в топ — показываем его отдельно #}
+                {% if me and my_position %}
+                <tr class="divider">
+                    <td colspan="3">· · ·</td>
+                </tr>
+                <tr class="row-me">
+                    <td class="col-pos">{{ my_position }}</td>
+                    <td>
+                        <span>{{ me.username }}</span>
+                        {% if me.title_label %}<span class="lb-title-tag">{{ me.title_label }}</span>{% endif %}
+                        <span class="name-me-badge">вы</span>
+                    </td>
+                    <td class="col-metric">{{ me.metric_label }}</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+</body>
+</html>
